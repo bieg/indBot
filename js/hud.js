@@ -222,7 +222,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
 
     for (const p of _JOINT_PARTS[li]) {
       ctx.fillStyle = ft
-        ? `rgba(255,252,200,${p.al * 0.7 * opacity})`
+        ? `rgba(255,248,180,${p.al * 0.35 * opacity})`
         : `rgba(225,238,255,${p.al * opacity})`;
       ctx.beginPath();
       ctx.arc(cx + p.dx, cy + p.dy, p.sz, 0, Math.PI * 2);
