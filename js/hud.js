@@ -14,10 +14,10 @@ const HAND_CONNECTIONS = [
   [5,9],[9,13],[13,17],
 ];
 
-const ORIENTATION_MS  = 2000;
-const FADE_DURATION   = 800;
-const OPACITY_HOLD    = 0.85;
-const OPACITY_END     = 0.70; // hand always clearly visible
+const ORIENTATION_MS  = 1000;
+const FADE_DURATION   = 400;
+const OPACITY_HOLD    = 1.0;
+const OPACITY_END     = 0.95;
 
 let gestureEl = null;
 let threadCountEl = null;
@@ -121,22 +121,22 @@ const PALM_TRIS = [
   [0, 13, 17],
 ];
 
-// Bone particles: wide ±30px scatter so each finger is a filled cloud, not a line
+// Bone particles: wide ±35px scatter, large bright dots
 const _BONE_PARTS = HAND_CONNECTIONS.map(([a, b], bi) => {
-  const N = 80;
+  const N = 90;
   return Array.from({ length: N }, (_, p) => ({
     t:    ((bi * 37 + p * 13 + 3) % 97) / 97,
-    perp: (((bi * 17 + p * 41 + 7) % 200) / 200 - 0.5) * 60, // ±30px
-    sz:   1.5 + ((bi * 7 + p * 11) % 10) / 6,   // 1.5–3.2px
-    al:   0.40 + ((bi * 3 + p * 7) % 55) / 100,  // 0.40–0.95
+    perp: (((bi * 17 + p * 41 + 7) % 200) / 200 - 0.5) * 70,
+    sz:   3.0 + ((bi * 7 + p * 11) % 10) / 4,   // 3–5.5px
+    al:   0.65 + ((bi * 3 + p * 7) % 30) / 100,  // 0.65–0.95
   }));
 });
 
 // Joint clusters — large halos at fingertips, medium at knuckles
 const _JOINT_PARTS = Array.from({ length: 21 }, (_, li) => {
   const ft = FINGERTIPS.includes(li);
-  const N = ft ? 70 : 32;
-  const R = ft ? 20 : 14;
+  const N = ft ? 70 : 40;
+  const R = ft ? 22 : 16;
   return Array.from({ length: N }, (_, p) => {
     const angle = (li * 41 + p * 17) * 0.6137;
     const frac  = ((li * 23 + p * 37 + 7) % 97) / 97;
@@ -144,24 +144,23 @@ const _JOINT_PARTS = Array.from({ length: 21 }, (_, li) => {
     return {
       dx: Math.cos(angle) * dist,
       dy: Math.sin(angle) * dist,
-      sz: 1.5 + ((li * 7 + p * 13) % 10) / 6,
-      al: 0.45 + ((li * 3 + p * 7) % 50) / 100,
+      sz: 3.0 + ((li * 7 + p * 13) % 10) / 4,
+      al: 0.70 + ((li * 3 + p * 7) % 25) / 100,
     };
   });
 });
 
 // Palm fill: precomputed barycentric coords for each palm triangle
 const _PALM_PARTS = PALM_TRIS.map((_, ti) => {
-  const N = 100;
+  const N = 120;
   return Array.from({ length: N }, (_, p) => {
-    // deterministic barycentric (s + t ≤ 1 via reflection trick)
     let s = ((ti * 41 + p * 37 + 7) % 97) / 97;
     let t = ((ti * 23 + p * 53 + 11) % 89) / 89;
     if (s + t > 1) { s = 1 - s; t = 1 - t; }
     return {
       s, t,
-      sz: 1.2 + ((ti * 7 + p * 11) % 10) / 7,
-      al: 0.30 + ((ti * 3 + p * 7) % 55) / 100,
+      sz: 2.5 + ((ti * 7 + p * 11) % 10) / 5,
+      al: 0.60 + ((ti * 3 + p * 7) % 35) / 100,
     };
   });
 });
@@ -180,7 +179,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     const nx = -edy / len, ny = edx / len;
 
     for (const p of _BONE_PARTS[bi]) {
-      ctx.fillStyle = `rgba(230,242,255,${p.al * opacity})`;
+      ctx.fillStyle = `rgba(255,255,255,${p.al * opacity})`;
       ctx.beginPath();
       ctx.arc(ax + edx * p.t + nx * p.perp,
               ay + edy * p.t + ny * p.perp,
@@ -199,7 +198,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
       const w0 = 1 - p.s - p.t;
       const qx = w0 * ax + p.s * bx + p.t * cx;
       const qy = w0 * ay + p.s * by + p.t * cy;
-      ctx.fillStyle = `rgba(225,240,255,${p.al * opacity})`;
+      ctx.fillStyle = `rgba(255,255,255,${p.al * opacity})`;
       ctx.beginPath();
       ctx.arc(qx, qy, p.sz, 0, Math.PI * 2);
       ctx.fill();
