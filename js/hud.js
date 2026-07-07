@@ -121,22 +121,22 @@ const PALM_TRIS = [
   [0, 13, 17],
 ];
 
-// Bone particles: wide ±35px scatter, large bright dots
+// Bone particles: wide ±32px scatter, small sparkly dots
 const _BONE_PARTS = HAND_CONNECTIONS.map(([a, b], bi) => {
-  const N = 90;
+  const N = 70;
   return Array.from({ length: N }, (_, p) => ({
     t:    ((bi * 37 + p * 13 + 3) % 97) / 97,
-    perp: (((bi * 17 + p * 41 + 7) % 200) / 200 - 0.5) * 70,
-    sz:   3.0 + ((bi * 7 + p * 11) % 10) / 4,   // 3–5.5px
-    al:   0.65 + ((bi * 3 + p * 7) % 30) / 100,  // 0.65–0.95
+    perp: (((bi * 17 + p * 41 + 7) % 200) / 200 - 0.5) * 64,
+    sz:   0.8 + ((bi * 7 + p * 11) % 10) / 6,   // 0.8–2.5px
+    al:   0.55 + ((bi * 3 + p * 7) % 35) / 100,  // 0.55–0.90
   }));
 });
 
-// Joint clusters — large halos at fingertips, medium at knuckles
+// Joint clusters — halos at fingertips, smaller at knuckles
 const _JOINT_PARTS = Array.from({ length: 21 }, (_, li) => {
   const ft = FINGERTIPS.includes(li);
-  const N = ft ? 70 : 40;
-  const R = ft ? 22 : 16;
+  const N = ft ? 55 : 28;
+  const R = ft ? 18 : 12;
   return Array.from({ length: N }, (_, p) => {
     const angle = (li * 41 + p * 17) * 0.6137;
     const frac  = ((li * 23 + p * 37 + 7) % 97) / 97;
@@ -144,23 +144,23 @@ const _JOINT_PARTS = Array.from({ length: 21 }, (_, li) => {
     return {
       dx: Math.cos(angle) * dist,
       dy: Math.sin(angle) * dist,
-      sz: 3.0 + ((li * 7 + p * 13) % 10) / 4,
-      al: 0.70 + ((li * 3 + p * 7) % 25) / 100,
+      sz: 0.8 + ((li * 7 + p * 13) % 10) / 5,
+      al: 0.60 + ((li * 3 + p * 7) % 30) / 100,
     };
   });
 });
 
 // Palm fill: precomputed barycentric coords for each palm triangle
 const _PALM_PARTS = PALM_TRIS.map((_, ti) => {
-  const N = 120;
+  const N = 80;
   return Array.from({ length: N }, (_, p) => {
     let s = ((ti * 41 + p * 37 + 7) % 97) / 97;
     let t = ((ti * 23 + p * 53 + 11) % 89) / 89;
     if (s + t > 1) { s = 1 - s; t = 1 - t; }
     return {
       s, t,
-      sz: 2.5 + ((ti * 7 + p * 11) % 10) / 5,
-      al: 0.60 + ((ti * 3 + p * 7) % 35) / 100,
+      sz: 0.7 + ((ti * 7 + p * 11) % 10) / 7,
+      al: 0.50 + ((ti * 3 + p * 7) % 40) / 100,
     };
   });
 });
