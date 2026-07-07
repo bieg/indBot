@@ -127,8 +127,8 @@ const _BONE_PARTS = HAND_CONNECTIONS.map(([a, b], bi) => {
   return Array.from({ length: N }, (_, p) => ({
     t:    ((bi * 37 + p * 13 + 3) % 97) / 97,
     perp: (((bi * 17 + p * 41 + 7) % 200) / 200 - 0.5) * 64,
-    sz:   0.8 + ((bi * 7 + p * 11) % 10) / 6,
-    al:   0.20 + ((bi * 3 + p * 7) % 30) / 100,  // 0.20–0.50
+    sz:   0.4 + ((bi * 7 + p * 11) % 28) / 8,   // 0.4–3.9px gevarieerd
+    al:   0.35 + ((bi * 3 + p * 7) % 35) / 100,  // 0.35–0.70
   }));
 });
 
@@ -159,8 +159,8 @@ const _PALM_PARTS = PALM_TRIS.map((_, ti) => {
     if (s + t > 1) { s = 1 - s; t = 1 - t; }
     return {
       s, t,
-      sz: 0.7 + ((ti * 7 + p * 11) % 10) / 7,
-      al: 0.15 + ((ti * 3 + p * 7) % 30) / 100,  // 0.15–0.45
+      sz: 0.4 + ((ti * 7 + p * 11) % 24) / 8,   // 0.4–3.4px gevarieerd
+      al: 0.30 + ((ti * 3 + p * 7) % 35) / 100,  // 0.30–0.65
     };
   });
 });
