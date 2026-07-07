@@ -30,8 +30,9 @@ const _FRAG = `
   void main() {
     float d = length(gl_PointCoord - 0.5) * 2.0; // 0 centre → 1 edge
     if (d > 1.0) discard;
-    float g = pow(1.0 - d, 2.4);                  // soft power-law glow
-    gl_FragColor = vec4(uColor * g, g);
+    float g = pow(1.0 - d, 1.8);                  // soft glow
+    // alpha=1 so AdditiveBlending adds uColor*g directly (no g² dimming)
+    gl_FragColor = vec4(uColor * g, 1.0);
   }
 `;
 
@@ -64,14 +65,14 @@ export function initStarfield(scene) {
   // main layer — 1500 small cool blue-white glowing dots
   geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  points = new THREE.Points(geometry, _starMat(4.5, 0xc8dcff));
+  points = new THREE.Points(geometry, _starMat(10, 0xddeeff));
   scene.add(points);
 
   // accent layer — 220 larger warm stars for depth (shared buffer view)
   const accentBuf = new Float32Array(positions.buffer, (COUNT - 220) * 3 * 4, 220 * 3);
   geometry2 = new THREE.BufferGeometry();
   geometry2.setAttribute('position', new THREE.BufferAttribute(accentBuf, 3));
-  points2 = new THREE.Points(geometry2, _starMat(9.0, 0xfff6e8));
+  points2 = new THREE.Points(geometry2, _starMat(22, 0xfffaf0));
   scene.add(points2);
 
   return points;

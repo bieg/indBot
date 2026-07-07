@@ -116,29 +116,31 @@ const FINGERTIPS = [4, 8, 12, 16, 20];
 // Dense particle cloud — precomputed stable positions along bones + at joints.
 // ~30 particles per bone segment + clusters at joints = ~1000 pts per hand.
 
+// 50 particles per bone, scattered ±5px perpendicular — bright and clearly visible
 const _BONE_PARTS = HAND_CONNECTIONS.map(([a, b], bi) => {
-  const N = 30;
+  const N = 50;
   return Array.from({ length: N }, (_, p) => ({
-    t:    ((bi * 37 + p * 13 + 3) % 97) / 97,          // position along bone
-    perp: (((bi * 17 + p * 41 + 7) % 200) / 200 - 0.5) * 8, // ±4px scatter
-    sz:   0.6 + ((bi * 7  + p * 11) % 8)  / 14,
-    al:   0.20 + ((bi * 3  + p *  7) % 60) / 160,
+    t:    ((bi * 37 + p * 13 + 3) % 97) / 97,
+    perp: (((bi * 17 + p * 41 + 7) % 200) / 200 - 0.5) * 10,
+    sz:   0.9 + ((bi * 7  + p * 11) % 8) / 10,
+    al:   0.55 + ((bi * 3  + p *  7) % 40) / 100,
   }));
 });
 
+// dense clusters at every joint
 const _JOINT_PARTS = Array.from({ length: 21 }, (_, li) => {
   const ft = FINGERTIPS.includes(li);
-  const N = ft ? 42 : 18;
-  const R = ft ? 12 : 7;
+  const N = ft ? 50 : 24;
+  const R = ft ? 14 : 9;
   return Array.from({ length: N }, (_, p) => {
     const angle = (li * 41 + p * 17) * 0.6137;
     const frac  = ((li * 23 + p * 37 + 7) % 97) / 97;
-    const dist  = R * (0.08 + 0.92 * frac);
+    const dist  = R * (0.05 + 0.95 * frac);
     return {
       dx: Math.cos(angle) * dist,
       dy: Math.sin(angle) * dist,
-      sz: 0.6 + ((li * 7 + p * 13) % 8) / 14,
-      al: 0.30 + ((li * 3 + p *  7) % 55) / 110,
+      sz: 0.9 + ((li * 7 + p * 13) % 8) / 10,
+      al: 0.55 + ((li * 3 + p *  7) % 40) / 100,
     };
   });
 });
@@ -147,17 +149,17 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
   const X = lm => (1 - lm.x) * w;
   const Y = lm => lm.y * h;
 
-  // dense cloud along every bone
+  // dense particle cloud along every bone segment
   for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
     const [a, b] = HAND_CONNECTIONS[bi];
     const ax = X(landmarks[a]), ay = Y(landmarks[a]);
     const bx = X(landmarks[b]), by = Y(landmarks[b]);
     const edx = bx - ax, edy = by - ay;
     const len = Math.sqrt(edx * edx + edy * edy) || 1;
-    const nx = -edy / len, ny = edx / len; // unit perpendicular
+    const nx = -edy / len, ny = edx / len;
 
     for (const p of _BONE_PARTS[bi]) {
-      ctx.fillStyle = `rgba(220,235,255,${p.al * opacity})`;
+      ctx.fillStyle = `rgba(230,242,255,${p.al * opacity})`;
       ctx.beginPath();
       ctx.arc(ax + edx * p.t + nx * p.perp,
               ay + edy * p.t + ny * p.perp,
@@ -166,26 +168,26 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     }
   }
 
-  // joint clusters + fingertip glow halos
+  // particle clusters at every joint
   for (let li = 0; li < 21; li++) {
     const cx = X(landmarks[li]), cy = Y(landmarks[li]);
     const ft = FINGERTIPS.includes(li);
 
+    // small focused glow at fingertips only
     if (ft) {
-      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 22);
-      g.addColorStop(0,   `rgba(255,242,160,${0.55 * opacity})`);
-      g.addColorStop(0.5, `rgba(255,215,80,${0.18 * opacity})`);
-      g.addColorStop(1,   'rgba(255,180,40,0)');
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 12);
+      g.addColorStop(0,   `rgba(255,248,200,${0.7 * opacity})`);
+      g.addColorStop(1,   'rgba(255,220,100,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 12, 0, Math.PI * 2);
       ctx.fill();
     }
 
     for (const p of _JOINT_PARTS[li]) {
       ctx.fillStyle = ft
-        ? `rgba(255,244,165,${p.al * opacity})`
-        : `rgba(218,234,255,${p.al * 0.88 * opacity})`;
+        ? `rgba(255,248,180,${p.al * opacity})`
+        : `rgba(225,238,255,${p.al * opacity})`;
       ctx.beginPath();
       ctx.arc(cx + p.dx, cy + p.dy, p.sz, 0, Math.PI * 2);
       ctx.fill();
