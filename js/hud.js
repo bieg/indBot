@@ -113,25 +113,30 @@ export function updateThreadCount(count) {
 
 const FINGERTIPS = [4, 8, 12, 16, 20];
 
-// Dense particle cloud — precomputed stable positions along bones + at joints.
-// ~30 particles per bone segment + clusters at joints = ~1000 pts per hand.
+// Palm triangles: 4 triangles that tile the entire palm surface
+const PALM_TRIS = [
+  [0, 1, 5],
+  [0, 5, 9],
+  [0, 9, 13],
+  [0, 13, 17],
+];
 
-// 50 particles per bone, scattered ±5px perpendicular — bright and clearly visible
+// Bone particles: wide ±30px scatter so each finger is a filled cloud, not a line
 const _BONE_PARTS = HAND_CONNECTIONS.map(([a, b], bi) => {
-  const N = 50;
+  const N = 80;
   return Array.from({ length: N }, (_, p) => ({
     t:    ((bi * 37 + p * 13 + 3) % 97) / 97,
-    perp: (((bi * 17 + p * 41 + 7) % 200) / 200 - 0.5) * 10,
-    sz:   0.9 + ((bi * 7  + p * 11) % 8) / 10,
-    al:   0.55 + ((bi * 3  + p *  7) % 40) / 100,
+    perp: (((bi * 17 + p * 41 + 7) % 200) / 200 - 0.5) * 60, // ±30px
+    sz:   1.5 + ((bi * 7 + p * 11) % 10) / 6,   // 1.5–3.2px
+    al:   0.40 + ((bi * 3 + p * 7) % 55) / 100,  // 0.40–0.95
   }));
 });
 
-// dense clusters at every joint
+// Joint clusters — large halos at fingertips, medium at knuckles
 const _JOINT_PARTS = Array.from({ length: 21 }, (_, li) => {
   const ft = FINGERTIPS.includes(li);
-  const N = ft ? 50 : 24;
-  const R = ft ? 14 : 9;
+  const N = ft ? 70 : 32;
+  const R = ft ? 20 : 14;
   return Array.from({ length: N }, (_, p) => {
     const angle = (li * 41 + p * 17) * 0.6137;
     const frac  = ((li * 23 + p * 37 + 7) % 97) / 97;
@@ -139,8 +144,24 @@ const _JOINT_PARTS = Array.from({ length: 21 }, (_, li) => {
     return {
       dx: Math.cos(angle) * dist,
       dy: Math.sin(angle) * dist,
-      sz: 0.9 + ((li * 7 + p * 13) % 8) / 10,
-      al: 0.55 + ((li * 3 + p *  7) % 40) / 100,
+      sz: 1.5 + ((li * 7 + p * 13) % 10) / 6,
+      al: 0.45 + ((li * 3 + p * 7) % 50) / 100,
+    };
+  });
+});
+
+// Palm fill: precomputed barycentric coords for each palm triangle
+const _PALM_PARTS = PALM_TRIS.map((_, ti) => {
+  const N = 100;
+  return Array.from({ length: N }, (_, p) => {
+    // deterministic barycentric (s + t ≤ 1 via reflection trick)
+    let s = ((ti * 41 + p * 37 + 7) % 97) / 97;
+    let t = ((ti * 23 + p * 53 + 11) % 89) / 89;
+    if (s + t > 1) { s = 1 - s; t = 1 - t; }
+    return {
+      s, t,
+      sz: 1.2 + ((ti * 7 + p * 11) % 10) / 7,
+      al: 0.30 + ((ti * 3 + p * 7) % 55) / 100,
     };
   });
 });
@@ -149,7 +170,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
   const X = lm => (1 - lm.x) * w;
   const Y = lm => lm.y * h;
 
-  // dense particle cloud along every bone segment
+  // 1. Bone particles — wide cloud fills the full finger width
   for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
     const [a, b] = HAND_CONNECTIONS[bi];
     const ax = X(landmarks[a]), ay = Y(landmarks[a]);
@@ -168,25 +189,41 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     }
   }
 
-  // particle clusters at every joint
+  // 2. Palm fill — particles scattered inside each palm triangle
+  for (let ti = 0; ti < PALM_TRIS.length; ti++) {
+    const [ia, ib, ic] = PALM_TRIS[ti];
+    const ax = X(landmarks[ia]), ay = Y(landmarks[ia]);
+    const bx = X(landmarks[ib]), by = Y(landmarks[ib]);
+    const cx = X(landmarks[ic]), cy = Y(landmarks[ic]);
+    for (const p of _PALM_PARTS[ti]) {
+      const w0 = 1 - p.s - p.t;
+      const qx = w0 * ax + p.s * bx + p.t * cx;
+      const qy = w0 * ay + p.s * by + p.t * cy;
+      ctx.fillStyle = `rgba(225,240,255,${p.al * opacity})`;
+      ctx.beginPath();
+      ctx.arc(qx, qy, p.sz, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 3. Joint clusters + fingertip glow
   for (let li = 0; li < 21; li++) {
     const cx = X(landmarks[li]), cy = Y(landmarks[li]);
     const ft = FINGERTIPS.includes(li);
 
-    // small focused glow at fingertips only
     if (ft) {
-      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 12);
-      g.addColorStop(0,   `rgba(255,248,200,${0.7 * opacity})`);
-      g.addColorStop(1,   'rgba(255,220,100,0)');
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 16);
+      g.addColorStop(0, `rgba(255,252,210,${0.65 * opacity})`);
+      g.addColorStop(1, 'rgba(255,230,120,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+      ctx.arc(cx, cy, 16, 0, Math.PI * 2);
       ctx.fill();
     }
 
     for (const p of _JOINT_PARTS[li]) {
       ctx.fillStyle = ft
-        ? `rgba(255,248,180,${p.al * opacity})`
+        ? `rgba(255,252,200,${p.al * opacity})`
         : `rgba(225,238,255,${p.al * opacity})`;
       ctx.beginPath();
       ctx.arc(cx + p.dx, cy + p.dy, p.sz, 0, Math.PI * 2);
