@@ -113,12 +113,20 @@ export function updateThreadCount(count) {
 
 const FINGERTIPS = [4, 8, 12, 16, 20];
 
-// Palm triangles: 4 triangles that tile the entire palm surface
+// Palm triangles: 9 triangles die de hele palm + ruimte tussen vingers vullen
 const PALM_TRIS = [
+  // Onderste palm (pols naar knokkels)
   [0, 1, 5],
   [0, 5, 9],
   [0, 9, 13],
   [0, 13, 17],
+  // Bovenste palm (tussen knokkels en eerste vingerlid)
+  [5, 6, 9],
+  [9, 10, 13],
+  [13, 14, 17],
+  // Midden palm
+  [5, 9, 13],
+  [9, 13, 17],
 ];
 
 // Bone particles: wide ±32px scatter, small sparkly dots
