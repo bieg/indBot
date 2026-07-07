@@ -212,7 +212,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
 
     if (ft) {
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 16);
-      g.addColorStop(0, `rgba(255,252,210,${0.65 * opacity})`);
+      g.addColorStop(0, `rgba(255,252,210,${0.35 * opacity})`);
       g.addColorStop(1, 'rgba(255,230,120,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
@@ -222,7 +222,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
 
     for (const p of _JOINT_PARTS[li]) {
       ctx.fillStyle = ft
-        ? `rgba(255,252,200,${p.al * opacity})`
+        ? `rgba(255,252,200,${p.al * 0.7 * opacity})`
         : `rgba(225,238,255,${p.al * opacity})`;
       ctx.beginPath();
       ctx.arc(cx + p.dx, cy + p.dy, p.sz, 0, Math.PI * 2);
