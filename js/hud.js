@@ -211,22 +211,28 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     const ft = FINGERTIPS.includes(li);
 
     if (ft) {
+      ctx.filter = 'blur(3px)';
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 16);
-      g.addColorStop(0, `rgba(255,252,210,${0.35 * opacity})`);
+      g.addColorStop(0, `rgba(255,252,210,${0.25 * opacity})`);
       g.addColorStop(1, 'rgba(255,230,120,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(cx, cy, 16, 0, Math.PI * 2);
       ctx.fill();
-    }
-
-    for (const p of _JOINT_PARTS[li]) {
-      ctx.fillStyle = ft
-        ? `rgba(255,248,180,${p.al * 0.35 * opacity})`
-        : `rgba(225,238,255,${p.al * opacity})`;
-      ctx.beginPath();
-      ctx.arc(cx + p.dx, cy + p.dy, p.sz, 0, Math.PI * 2);
-      ctx.fill();
+      for (const p of _JOINT_PARTS[li]) {
+        ctx.fillStyle = `rgba(255,248,180,${p.al * 0.25 * opacity})`;
+        ctx.beginPath();
+        ctx.arc(cx + p.dx, cy + p.dy, p.sz, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.filter = 'none';
+    } else {
+      for (const p of _JOINT_PARTS[li]) {
+        ctx.fillStyle = `rgba(225,238,255,${p.al * opacity})`;
+        ctx.beginPath();
+        ctx.arc(cx + p.dx, cy + p.dy, p.sz, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 }
