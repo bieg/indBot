@@ -187,7 +187,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     const nx = -edy / len, ny = edx / len;
 
     for (const p of _BONE_PARTS[bi]) {
-      ctx.fillStyle = `rgba(160,210,255,${p.al * opacity})`;
+      ctx.fillStyle = `rgba(255,245,225,${p.al * opacity})`;
       ctx.beginPath();
       ctx.arc(ax + edx * p.t + nx * p.perp,
               ay + edy * p.t + ny * p.perp,
@@ -206,7 +206,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
       const w0 = 1 - p.s - p.t;
       const qx = w0 * ax + p.s * bx + p.t * cx;
       const qy = w0 * ay + p.s * by + p.t * cy;
-      ctx.fillStyle = `rgba(160,210,255,${p.al * opacity})`;
+      ctx.fillStyle = `rgba(255,240,210,${p.al * opacity})`;
       ctx.beginPath();
       ctx.arc(qx, qy, p.sz, 0, Math.PI * 2);
       ctx.fill();
@@ -236,7 +236,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
       ctx.filter = 'none';
     } else {
       for (const p of _JOINT_PARTS[li]) {
-        ctx.fillStyle = `rgba(225,238,255,${p.al * opacity})`;
+        ctx.fillStyle = `rgba(255,238,210,${p.al * opacity})`;
         ctx.beginPath();
         ctx.arc(cx + p.dx, cy + p.dy, p.sz, 0, Math.PI * 2);
         ctx.fill();
