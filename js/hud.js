@@ -129,15 +129,22 @@ const PALM_TRIS = [
   [9, 13, 17],
 ];
 
-// Bone particles: wide ±32px scatter, small sparkly dots
+// Bone particles: circular cloud around each bone — no rectangular banding
 const _BONE_PARTS = HAND_CONNECTIONS.map(([a, b], bi) => {
-  const N = 70;
-  return Array.from({ length: N }, (_, p) => ({
-    t:    ((bi * 37 + p * 13 + 3) % 97) / 97,
-    perp: (((bi * 17 + p * 41 + 7) % 200) / 200 - 0.5) * 64,
-    sz:   0.4 + ((bi * 7 + p * 11) % 28) / 8,   // 0.4–3.9px gevarieerd
-    al:   0.45 + ((bi * 3 + p * 7) % 35) / 100,  // 0.45–0.80
-  }));
+  const N = 80;
+  return Array.from({ length: N }, (_, p) => {
+    const t    = ((bi * 37 + p * 13 + 3) % 97) / 97;
+    const ang  = ((bi * 41 + p * 71 + 13) % 317) / 317 * Math.PI * 2;
+    const frac = ((bi * 31 + p * 19 + 11) % 97) / 97;
+    const dist = frac * 28; // linear → 1/r density in 2D, denser near bone
+    return {
+      t,
+      dx: Math.cos(ang) * dist,
+      dy: Math.sin(ang) * dist,
+      sz: 0.5 + ((bi * 7 + p * 11) % 24) / 10,
+      al: 0.45 + ((bi * 3 + p * 7) % 35) / 100,
+    };
+  });
 });
 
 // Joint clusters — halos at fingertips, smaller at knuckles
@@ -189,8 +196,8 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     for (const p of _BONE_PARTS[bi]) {
       ctx.fillStyle = `rgba(255,245,225,${p.al * opacity})`;
       ctx.beginPath();
-      ctx.arc(ax + edx * p.t + nx * p.perp,
-              ay + edy * p.t + ny * p.perp,
+      ctx.arc(ax + edx * p.t + nx * p.dx + (edx / len) * p.dy,
+              ay + edy * p.t + ny * p.dx + (edy / len) * p.dy,
               p.sz, 0, Math.PI * 2);
       ctx.fill();
     }
