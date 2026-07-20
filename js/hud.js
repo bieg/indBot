@@ -141,7 +141,7 @@ const _BONE_PARTS = HAND_CONNECTIONS.map(([a, b], bi) => {
       t,
       dx: Math.cos(ang) * dist,
       dy: Math.sin(ang) * dist,
-      sz: 0.5 + ((bi * 7 + p * 11) % 24) / 10,
+      sz: 0.25 + ((bi * 7 + p * 11) % 24) / 20,
       al: 0.45 + ((bi * 3 + p * 7) % 35) / 100,
     };
   });
@@ -159,7 +159,7 @@ const _JOINT_PARTS = Array.from({ length: 21 }, (_, li) => {
     return {
       dx: Math.cos(angle) * dist,
       dy: Math.sin(angle) * dist,
-      sz: 0.8 + ((li * 7 + p * 13) % 10) / 5,
+      sz: 0.4 + ((li * 7 + p * 13) % 10) / 10,
       al: 0.60 + ((li * 3 + p * 7) % 30) / 100,
     };
   });
@@ -174,7 +174,7 @@ const _PALM_PARTS = PALM_TRIS.map((_, ti) => {
     if (s + t > 1) { s = 1 - s; t = 1 - t; }
     return {
       s, t,
-      sz: 0.4 + ((ti * 7 + p * 11) % 24) / 8,   // 0.4–3.4px gevarieerd
+      sz: 0.2 + ((ti * 7 + p * 11) % 24) / 16,
       al: 0.45 + ((ti * 3 + p * 7) % 35) / 100,  // 0.45–0.80
     };
   });
