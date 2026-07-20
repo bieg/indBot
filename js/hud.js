@@ -27,6 +27,8 @@ let skeletonCanvas = null;
 let skeletonCtx = null;
 let flashTimeout = null;
 let lastCount = -1;
+let _blurCanvas = null;
+let _blurCtx    = null;
 
 // per-hand first-seen timestamp for fade
 const handFirstSeen = [null, null];
@@ -129,53 +131,19 @@ const PALM_TRIS = [
   [9, 13, 17],
 ];
 
-// Bone particles: circular cloud around each bone — no rectangular banding
-const _BONE_PARTS = HAND_CONNECTIONS.map(([a, b], bi) => {
-  const N = 80;
+// Sparkle particles: small texture dots scattered around each bone (not the base shape)
+const _SPARKLES = HAND_CONNECTIONS.map(([a, b], bi) => {
+  const N = 45;
   return Array.from({ length: N }, (_, p) => {
-    const t    = ((bi * 37 + p * 13 + 3) % 97) / 97;
-    const ang  = ((bi * 41 + p * 71 + 13) % 317) / 317 * Math.PI * 2;
-    const frac = ((bi * 31 + p * 19 + 11) % 97) / 97;
-    const dist = frac * 28; // linear → 1/r density in 2D, denser near bone
+    const t   = ((bi * 37 + p * 13 + 3) % 97) / 97;
+    const ang = ((bi * 41 + p * 71 + 13) % 317) / 317 * Math.PI * 2;
+    const r   = ((bi * 31 + p * 19 + 11) % 97) / 97 * 12; // max 12px scatter
     return {
       t,
-      dx: Math.cos(ang) * dist,
-      dy: Math.sin(ang) * dist,
-      sz: 0.25 + ((bi * 7 + p * 11) % 24) / 20,
-      al: 0.45 + ((bi * 3 + p * 7) % 35) / 100,
-    };
-  });
-});
-
-// Joint clusters — halos at fingertips, smaller at knuckles
-const _JOINT_PARTS = Array.from({ length: 21 }, (_, li) => {
-  const ft = FINGERTIPS.includes(li);
-  const N = ft ? 55 : 28;
-  const R = ft ? 18 : 12;
-  return Array.from({ length: N }, (_, p) => {
-    const angle = (li * 41 + p * 17) * 0.6137;
-    const frac  = ((li * 23 + p * 37 + 7) % 97) / 97;
-    const dist  = R * (0.05 + 0.95 * frac);
-    return {
-      dx: Math.cos(angle) * dist,
-      dy: Math.sin(angle) * dist,
-      sz: 0.4 + ((li * 7 + p * 13) % 10) / 10,
-      al: 0.60 + ((li * 3 + p * 7) % 30) / 100,
-    };
-  });
-});
-
-// Palm fill: precomputed barycentric coords for each palm triangle
-const _PALM_PARTS = PALM_TRIS.map((_, ti) => {
-  const N = 80;
-  return Array.from({ length: N }, (_, p) => {
-    let s = ((ti * 41 + p * 37 + 7) % 97) / 97;
-    let t = ((ti * 23 + p * 53 + 11) % 89) / 89;
-    if (s + t > 1) { s = 1 - s; t = 1 - t; }
-    return {
-      s, t,
-      sz: 0.2 + ((ti * 7 + p * 11) % 24) / 16,
-      al: 0.45 + ((ti * 3 + p * 7) % 35) / 100,  // 0.45–0.80
+      dx: Math.cos(ang) * r,
+      dy: Math.sin(ang) * r,
+      sz: 0.3 + ((bi * 7 + p * 11) % 16) / 16,  // 0.3–1.3px
+      al: 0.35 + ((bi * 3 + p * 7) % 40) / 100,
     };
   });
 });
@@ -184,7 +152,67 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
   const X = lm => (1 - lm.x) * w;
   const Y = lm => lm.y * h;
 
-  // 1. Bone particles — wide cloud fills the full finger width
+  // ── 1. Soft glowing tubes on offscreen canvas, then blur-composite ────────
+  if (!_blurCanvas) {
+    _blurCanvas = document.createElement('canvas');
+    _blurCtx    = _blurCanvas.getContext('2d');
+  }
+  if (_blurCanvas.width !== w || _blurCanvas.height !== h) {
+    _blurCanvas.width  = w;
+    _blurCanvas.height = h;
+  }
+  const bc = _blurCtx;
+  bc.clearRect(0, 0, w, h);
+  bc.lineCap  = 'round';
+  bc.lineJoin = 'round';
+
+  // Palm fill — warm area
+  for (const [ia, ib, ic] of PALM_TRIS) {
+    bc.fillStyle = `rgba(255,235,190,${0.28 * opacity})`;
+    bc.beginPath();
+    bc.moveTo(X(landmarks[ia]), Y(landmarks[ia]));
+    bc.lineTo(X(landmarks[ib]), Y(landmarks[ib]));
+    bc.lineTo(X(landmarks[ic]), Y(landmarks[ic]));
+    bc.closePath();
+    bc.fill();
+  }
+
+  // Outer halo — wide soft glow per bone
+  for (const [a, b] of HAND_CONNECTIONS) {
+    bc.strokeStyle = `rgba(255,228,160,${0.22 * opacity})`;
+    bc.lineWidth = 38;
+    bc.beginPath();
+    bc.moveTo(X(landmarks[a]), Y(landmarks[a]));
+    bc.lineTo(X(landmarks[b]), Y(landmarks[b]));
+    bc.stroke();
+  }
+
+  // Bright core — narrower, higher alpha
+  for (const [a, b] of HAND_CONNECTIONS) {
+    bc.strokeStyle = `rgba(255,252,228,${0.65 * opacity})`;
+    bc.lineWidth = 10;
+    bc.beginPath();
+    bc.moveTo(X(landmarks[a]), Y(landmarks[a]));
+    bc.lineTo(X(landmarks[b]), Y(landmarks[b]));
+    bc.stroke();
+  }
+
+  // Joint dots — brighter knots at each landmark
+  for (let li = 0; li < 21; li++) {
+    bc.fillStyle = `rgba(255,255,240,${0.9 * opacity})`;
+    bc.beginPath();
+    bc.arc(X(landmarks[li]), Y(landmarks[li]), FINGERTIPS.includes(li) ? 7 : 4, 0, Math.PI * 2);
+    bc.fill();
+  }
+
+  // Single blur pass → everything becomes soft + organic, no visible pixels
+  ctx.save();
+  ctx.filter = 'blur(13px)';
+  ctx.drawImage(_blurCanvas, 0, 0);
+  ctx.filter = 'none';
+  ctx.restore();
+
+  // ── 2. Sparkle overlay — tiny bright dots for texture/depth ───────────────
   for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
     const [a, b] = HAND_CONNECTIONS[bi];
     const ax = X(landmarks[a]), ay = Y(landmarks[a]);
@@ -192,63 +220,29 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     const edx = bx - ax, edy = by - ay;
     const len = Math.sqrt(edx * edx + edy * edy) || 1;
     const nx = -edy / len, ny = edx / len;
-
-    for (const p of _BONE_PARTS[bi]) {
-      ctx.fillStyle = `rgba(255,245,225,${p.al * opacity})`;
+    for (const p of _SPARKLES[bi]) {
+      ctx.fillStyle = `rgba(255,253,235,${p.al * opacity})`;
       ctx.beginPath();
-      ctx.arc(ax + edx * p.t + nx * p.dx + (edx / len) * p.dy,
-              ay + edy * p.t + ny * p.dx + (edy / len) * p.dy,
-              p.sz, 0, Math.PI * 2);
+      ctx.arc(
+        ax + edx * p.t + nx * p.dx + (edx / len) * p.dy,
+        ay + edy * p.t + ny * p.dx + (edy / len) * p.dy,
+        p.sz, 0, Math.PI * 2,
+      );
       ctx.fill();
     }
   }
 
-  // 2. Palm fill — particles scattered inside each palm triangle
-  for (let ti = 0; ti < PALM_TRIS.length; ti++) {
-    const [ia, ib, ic] = PALM_TRIS[ti];
-    const ax = X(landmarks[ia]), ay = Y(landmarks[ia]);
-    const bx = X(landmarks[ib]), by = Y(landmarks[ib]);
-    const cx = X(landmarks[ic]), cy = Y(landmarks[ic]);
-    for (const p of _PALM_PARTS[ti]) {
-      const w0 = 1 - p.s - p.t;
-      const qx = w0 * ax + p.s * bx + p.t * cx;
-      const qy = w0 * ay + p.s * by + p.t * cy;
-      ctx.fillStyle = `rgba(255,240,210,${p.al * opacity})`;
-      ctx.beginPath();
-      ctx.arc(qx, qy, p.sz, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  // 3. Joint clusters + fingertip glow
-  for (let li = 0; li < 21; li++) {
+  // ── 3. Fingertip halos — soft radial gradient ─────────────────────────────
+  for (const li of FINGERTIPS) {
     const cx = X(landmarks[li]), cy = Y(landmarks[li]);
-    const ft = FINGERTIPS.includes(li);
-
-    if (ft) {
-      ctx.filter = 'blur(3px)';
-      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 16);
-      g.addColorStop(0, `rgba(255,252,210,${0.25 * opacity})`);
-      g.addColorStop(1, 'rgba(255,230,120,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(cx, cy, 16, 0, Math.PI * 2);
-      ctx.fill();
-      for (const p of _JOINT_PARTS[li]) {
-        ctx.fillStyle = `rgba(255,248,180,${p.al * 0.25 * opacity})`;
-        ctx.beginPath();
-        ctx.arc(cx + p.dx, cy + p.dy, p.sz, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.filter = 'none';
-    } else {
-      for (const p of _JOINT_PARTS[li]) {
-        ctx.fillStyle = `rgba(255,238,210,${p.al * opacity})`;
-        ctx.beginPath();
-        ctx.arc(cx + p.dx, cy + p.dy, p.sz, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 26);
+    g.addColorStop(0,   `rgba(255,255,220,${0.60 * opacity})`);
+    g.addColorStop(0.4, `rgba(255,240,155,${0.22 * opacity})`);
+    g.addColorStop(1,   'rgba(255,215,80,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 26, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
