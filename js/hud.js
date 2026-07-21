@@ -145,69 +145,86 @@ const _BONE_SCATTER = Array.from({ length: 23 * 2 }, (_, bi) =>
 
 // Cloud radius per landmark (fraction of hand scale = wrist–MCP9 distance)
 const _LM_R = [
-  0.13,                           // 0  wrist
-  0.07, 0.07, 0.06, 0.10,         // 1-4  thumb
-  0.08, 0.07, 0.06, 0.10,         // 5-8  index
-  0.08, 0.07, 0.06, 0.10,         // 9-12 middle
-  0.08, 0.07, 0.06, 0.10,         // 13-16 ring
-  0.07, 0.06, 0.05, 0.09,         // 17-20 pinky
+  0.10,                             // 0  wrist
+  0.055, 0.055, 0.048, 0.082,       // 1-4  thumb
+  0.063, 0.055, 0.048, 0.082,       // 5-8  index
+  0.063, 0.055, 0.048, 0.082,       // 9-12 middle
+  0.063, 0.055, 0.048, 0.082,       // 13-16 ring
+  0.055, 0.048, 0.038, 0.072,       // 17-20 pinky
 ];
 
 const FINGERTIPS = [4, 8, 12, 16, 20];
 
 // Bone diameter as fraction of hand scale — drives the dark skin + neon glow width
 const BONE_WIDTHS = [
-  0.16, 0.14, 0.12, 0.10,  // thumb
-  0.17, 0.15, 0.13, 0.10,  // index
-  0.18, 0.16, 0.13, 0.11,  // middle
-  0.17, 0.15, 0.13, 0.10,  // ring
-  0.14, 0.12, 0.10, 0.08,  // pinky
-  0.16, 0.16, 0.16,          // knuckle row
+  0.19, 0.17, 0.14, 0.12,  // thumb
+  0.20, 0.18, 0.15, 0.12,  // index
+  0.21, 0.19, 0.15, 0.13,  // middle
+  0.20, 0.18, 0.15, 0.12,  // ring
+  0.17, 0.14, 0.12, 0.09,  // pinky
+  0.19, 0.19, 0.19,          // knuckle row
 ];
 
 // Pinch flash state per hand (decays each frame)
 const _pinchFlash = [0, 0];
 
 // Dark skin base with Arcane neon edge glow.
-// Two-pass per bone: wide neon halo first (glow bleeds outward),
-// then narrower dark fill on top → visible cyan ring around every finger.
+// Pass 0: filled palm polygon anchors the hand mass.
+// Passes 1-3: per-bone neon halo → dark fill → purple tint.
 function _renderSkin(ctx, landmarks, scale, masterOpacity) {
   const w = skeletonCanvas.width, h = skeletonCanvas.height;
   ctx.save();
   ctx.lineCap  = 'round';
   ctx.lineJoin = 'round';
 
-  // Pass 1 — neon cyan halo (shadowBlur extends outward past the stroke edge)
-  ctx.shadowColor = 'rgba(0,195,245,0.70)';
-  ctx.shadowBlur  = 14;
+  // Pass 0 — palm silhouette (wrist → thumb CMC → index MCP → … → pinky MCP)
+  ctx.shadowBlur = 0;
+  const palmRing = [0, 1, 5, 9, 13, 17];
+  ctx.beginPath();
+  ctx.moveTo((1 - landmarks[palmRing[0]].x) * w, landmarks[palmRing[0]].y * h);
+  for (let i = 1; i < palmRing.length; i++) {
+    ctx.lineTo((1 - landmarks[palmRing[i]].x) * w, landmarks[palmRing[i]].y * h);
+  }
+  ctx.closePath();
+  ctx.fillStyle = `rgba(5,2,22,${0.88 * masterOpacity})`;
+  ctx.fill();
+  // Neon contour on the palm polygon too
+  ctx.shadowColor = 'rgba(0,195,245,0.55)';
+  ctx.shadowBlur  = 16;
+  ctx.strokeStyle = `rgba(0,165,220,${0.28 * masterOpacity})`;
+  ctx.lineWidth   = scale * 0.05;
+  ctx.stroke();
+
+  // Pass 1 — neon cyan halo per bone
+  ctx.shadowColor = 'rgba(0,195,245,0.80)';
+  ctx.shadowBlur  = 20;
   for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
     const [a, b] = HAND_CONNECTIONS[bi];
     ctx.lineWidth   = BONE_WIDTHS[bi] * scale;
-    ctx.strokeStyle = `rgba(0,175,230,${0.13 * masterOpacity})`;
+    ctx.strokeStyle = `rgba(0,175,230,${0.42 * masterOpacity})`;
     ctx.beginPath();
     ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
     ctx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
     ctx.stroke();
   }
 
-  // Pass 2 — dark Arcane interior (covers the halo centre, leaves glowing rim)
+  // Pass 2 — dark Arcane interior (covers halo centre, leaves glowing rim)
   ctx.shadowBlur  = 0;
   for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
     const [a, b] = HAND_CONNECTIONS[bi];
-    ctx.lineWidth   = BONE_WIDTHS[bi] * scale * 0.70;
-    ctx.strokeStyle = `rgba(5,2,22,${0.92 * masterOpacity})`;
+    ctx.lineWidth   = BONE_WIDTHS[bi] * scale * 0.68;
+    ctx.strokeStyle = `rgba(5,2,22,${0.94 * masterOpacity})`;
     ctx.beginPath();
     ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
     ctx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
     ctx.stroke();
   }
 
-  // Pass 3 — inner Arcane purple tint (thin, adds colour depth to skin interior)
-  ctx.shadowBlur  = 0;
+  // Pass 3 — inner Arcane purple tint
   for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
     const [a, b] = HAND_CONNECTIONS[bi];
-    ctx.lineWidth   = BONE_WIDTHS[bi] * scale * 0.38;
-    ctx.strokeStyle = `rgba(40,10,90,${0.22 * masterOpacity})`;
+    ctx.lineWidth   = BONE_WIDTHS[bi] * scale * 0.36;
+    ctx.strokeStyle = `rgba(40,10,90,${0.28 * masterOpacity})`;
     ctx.beginPath();
     ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
     ctx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
@@ -332,7 +349,7 @@ function _renderTrail(ctx, hi, masterOpacity, time) {
     velFactor = Math.min(sumD / keyLms.length / 12, 1); // 12px/frame = max
   }
 
-  const velSpread = 1 + velFactor * 2.2;   // 1× still → 3.2× fast
+  const velSpread = 1 + velFactor * 1.0;   // 1× still → 2.0× fast (capped for form stability)
   const N = frames.length;
 
   // Helper: emit a particle cloud at (cx, cy) using pre-baked offsets
