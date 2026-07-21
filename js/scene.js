@@ -113,7 +113,7 @@ function _restoreMaterials() {
 export function getScene() { return scene; }
 export function getCamera() { return camera; }
 
-const WORLD_SCALE = 0.6;
+const WORLD_SCALE = 0.6; // compress hand-to-world mapping so closer hands still work
 
 export function mpToWorld(mpX, mpY, z = 0) {
   const aspect = window.innerWidth / window.innerHeight;

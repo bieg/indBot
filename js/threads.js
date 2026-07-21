@@ -37,6 +37,7 @@ class Thread {
 }
 
 function _buildMesh(type, start, end) {
+  // all threads start transparent at opacity 0 — birth fade-in in updateThreads
   if (type === 'structure') {
     const curve = new THREE.CatmullRomCurve3([start, end]);
     const geo = new THREE.TubeGeometry(curve, 20, 0.012, 6, false);
@@ -49,6 +50,7 @@ function _buildMesh(type, start, end) {
     const mat = new THREE.MeshBasicMaterial({ color: THREAD_COLORS.ghost, transparent: true, opacity: 0 });
     return new THREE.Mesh(geo, mat);
   }
+  // energy + gravity
   const curve = new THREE.CatmullRomCurve3([start, end]);
   const geo = new THREE.TubeGeometry(curve, 20, 0.02, 6, false);
   const mat = new THREE.MeshBasicMaterial({ color: THREAD_COLORS[type], transparent: true, opacity: 0 });
@@ -96,6 +98,7 @@ export function updateThreads(time) {
         t.dyingStart = now;
       }
     } else if (t.mesh.material) {
+      // structure / gravity / ghost: fade in then hold
       const maxOp = t.type === 'ghost' ? 0.08 : 1.0;
       t.mesh.material.opacity = birthFade * maxOp;
     }

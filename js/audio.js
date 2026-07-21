@@ -80,6 +80,7 @@ export function playGestureSound(type) {
       playTone({ freq: 528, freqEnd: 396, type: 'sine', duration: 0.5, gainPeak: 0.2 });
       break;
     case 'solly-touch':
+      // warm resonant chime — two harmonics
       playTone({ freq: 528, type: 'sine', duration: 0.8, gainPeak: 0.25 });
       playTone({ freq: 792, type: 'sine', duration: 0.5, gainPeak: 0.12 });
       break;

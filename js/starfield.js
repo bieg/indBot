@@ -14,10 +14,13 @@ const phases = new Float32Array(COUNT);
 let geometry, points;
 let geometry2, points2;
 
+// Inline GLSL — draws a soft radial glow disc using gl_PointCoord.
+// Much more reliable than canvas textures (no asset loading, no alphaTest quirks).
 const _VERT = `
   uniform float uSize;
   void main() {
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    // sizeAttenuation: scale by depth so far stars are smaller
     gl_PointSize = uSize / max(0.05, -mv.z / 10.0);
     gl_Position  = projectionMatrix * mv;
   }
@@ -25,9 +28,10 @@ const _VERT = `
 const _FRAG = `
   uniform vec3 uColor;
   void main() {
-    float d = length(gl_PointCoord - 0.5) * 2.0;
+    float d = length(gl_PointCoord - 0.5) * 2.0; // 0 centre → 1 edge
     if (d > 1.0) discard;
-    float g = pow(1.0 - d, 1.8);
+    float g = pow(1.0 - d, 1.8);                  // soft glow
+    // alpha=1 so AdditiveBlending adds uColor*g directly (no g² dimming)
     gl_FragColor = vec4(uColor * g, 1.0);
   }
 `;
@@ -58,11 +62,13 @@ export function initStarfield(scene) {
     phases[i] = Math.random() * Math.PI * 2;
   }
 
+  // main layer — 1500 small cool blue-white glowing dots
   geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   points = new THREE.Points(geometry, _starMat(10, 0xddeeff));
   scene.add(points);
 
+  // accent layer — 220 larger warm stars for depth (shared buffer view)
   const accentBuf = new Float32Array(positions.buffer, (COUNT - 220) * 3 * 4, 220 * 3);
   geometry2 = new THREE.BufferGeometry();
   geometry2.setAttribute('position', new THREE.BufferAttribute(accentBuf, 3));
@@ -138,6 +144,7 @@ export function rotateImpulse(originWorld, direction = 1) {
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 4.5 && dist > 0.05) {
       const strength = 0.05 / Math.max(dist, 0.3);
+      // tangential = perpendicular to radial
       velocities[i3]     += (-dy / dist) * strength * direction;
       velocities[i3 + 1] += ( dx / dist) * strength * direction;
     }

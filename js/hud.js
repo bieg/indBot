@@ -30,6 +30,7 @@ let lastCount = -1;
 let _blurCanvas = null;
 let _blurCtx    = null;
 
+// per-hand first-seen timestamp for fade
 const handFirstSeen = [null, null];
 
 export function initHud() {
@@ -38,6 +39,7 @@ export function initHud() {
   skeletonCanvas = document.getElementById('skeleton-canvas');
   skeletonCtx = skeletonCanvas.getContext('2d');
 
+  // inject hand indicator dots into the HUD
   const hud = document.getElementById('hud');
   const indicators = document.createElement('div');
   indicators.id = 'hand-indicators';
@@ -113,34 +115,40 @@ export function updateThreadCount(count) {
 
 const FINGERTIPS = [4, 8, 12, 16, 20];
 
+// Palm triangles: 9 triangles die de hele palm + ruimte tussen vingers vullen
 const PALM_TRIS = [
+  // Onderste palm (pols naar knokkels)
   [0, 1, 5],
   [0, 5, 9],
   [0, 9, 13],
   [0, 13, 17],
+  // Bovenste palm (tussen knokkels en eerste vingerlid)
   [5, 6, 9],
   [9, 10, 13],
   [13, 14, 17],
+  // Midden palm
   [5, 9, 13],
   [9, 13, 17],
 ];
 
+// Bone particles: dichte puntenwolk strak langs elk bot (max 5px scatter)
 const _BONE_PARTS = HAND_CONNECTIONS.map(([a, b], bi) => {
   const N = 90;
   return Array.from({ length: N }, (_, p) => {
     const t   = ((bi * 37 + p * 13 + 3) % 97) / 97;
     const ang = ((bi * 41 + p * 71 + 13) % 317) / 317 * Math.PI * 2;
-    const r   = ((bi * 31 + p * 19 + 11) % 97) / 97 * 5;
+    const r   = ((bi * 31 + p * 19 + 11) % 97) / 97 * 5; // max 5px — strak op bot
     return {
       t,
       dx: Math.cos(ang) * r,
       dy: Math.sin(ang) * r,
-      sz: 0.4 + ((bi * 7 + p * 11) % 14) / 8,
-      al: 0.50 + ((bi * 3 + p * 7) % 38) / 100,
+      sz: 0.4 + ((bi * 7 + p * 11) % 14) / 8,  // 0.4–2.1px gevarieerd
+      al: 0.50 + ((bi * 3 + p * 7) % 38) / 100, // 0.50–0.88 helder
     };
   });
 });
 
+// Gewrichts-clusters: heldere stippen op elk landmark
 const _JOINT_PARTS = Array.from({ length: 21 }, (_, li) => {
   const ft = FINGERTIPS.includes(li);
   const N  = ft ? 24 : 10;
@@ -164,6 +172,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
   const X = lm => (1 - lm.x) * w;
   const Y = lm => lm.y * h;
 
+  // 1. Dunne skelet-lijnen — nauwelijks zichtbaar, geven structuur
   ctx.save();
   ctx.strokeStyle = `rgba(255,255,255,${0.18 * opacity})`;
   ctx.lineWidth = 0.6;
@@ -176,6 +185,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
   }
   ctx.restore();
 
+  // 2. Puntenwolk langs elk bot — glinsterende magische punten
   for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
     const [a, b] = HAND_CONNECTIONS[bi];
     const ax = X(landmarks[a]), ay = Y(landmarks[a]);
@@ -195,6 +205,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     }
   }
 
+  // 3. Gewrichts-clusters — heldere knooppunten op elk landmark
   for (let li = 0; li < 21; li++) {
     const cx = X(landmarks[li]), cy = Y(landmarks[li]);
     for (const p of _JOINT_PARTS[li]) {
@@ -205,6 +216,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     }
   }
 
+  // 4. Vingertoppen-halo — zachte gloei-cirkel
   for (const li of FINGERTIPS) {
     const cx = X(landmarks[li]), cy = Y(landmarks[li]);
     const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 14);
@@ -240,6 +252,7 @@ export function drawSkeleton(handsResults, handInfos) {
       continue;
     }
 
+    // hand indicator dot — pulse white during orientation, gold after
     if (dot) {
       const orienting = info && info.orienting;
       if (orienting) {
@@ -251,18 +264,22 @@ export function drawSkeleton(handsResults, handInfos) {
       }
     }
 
+    // orientation hold then fade
     if (handFirstSeen[hi] === null) handFirstSeen[hi] = now;
     const elapsed = now - handFirstSeen[hi];
     let opacity;
     if (elapsed < ORIENTATION_MS) {
+      // hold at 20% during orientation window (fade in over first 300ms)
       opacity = OPACITY_HOLD * Math.min(elapsed / 300, 1);
     } else {
+      // fade from 20% to dim over FADE_DURATION
       const t = Math.min((elapsed - ORIENTATION_MS) / FADE_DURATION, 1);
       opacity = OPACITY_HOLD + (OPACITY_END - OPACITY_HOLD) * t;
     }
 
     _drawHand(skeletonCtx, landmarks, w, h, opacity);
 
+    // draw progress arcs for growing gestures
     if (info && info.present) {
       const FINGERS = ['structure', 'energy', 'gravity', 'ghost'];
       for (let fi = 0; fi < 4; fi++) {
@@ -277,12 +294,14 @@ export function drawSkeleton(handsResults, handInfos) {
         const ty = info.thumbMp.y * h;
         const color = THREAD_COLORS[FINGERS[fi]];
 
+        // outer dim ring
         skeletonCtx.beginPath();
         skeletonCtx.arc(tx, ty, 14, 0, Math.PI * 2);
         skeletonCtx.strokeStyle = 'rgba(255,255,255,0.12)';
         skeletonCtx.lineWidth = 2;
         skeletonCtx.stroke();
 
+        // progress arc (filled clockwise from top)
         skeletonCtx.beginPath();
         skeletonCtx.arc(tx, ty, 14, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
         skeletonCtx.strokeStyle = color;

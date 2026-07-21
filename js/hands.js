@@ -11,7 +11,7 @@ const FIST_RELEASE = 1.2;
 const FRAMES_REQUIRED = 5;
 const COOLDOWN_MS = 400;
 const ALPHA = 0.3;
-const ROTATE_THRESHOLD = 1.1;
+const ROTATE_THRESHOLD = 1.1;   // ~63° of wrist rotation
 const ROTATE_WINDOW_MS = 600;
 const ROTATE_COOLDOWN_MS = 800;
 
