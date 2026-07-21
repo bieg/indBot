@@ -25,7 +25,6 @@ export function initSolly(scene) {
 
   const tetraGeo = new THREE.TetrahedronGeometry(0.45, 0);
 
-  // semi-transparent faces at 50% — 3D volume visible, void shows through
   faceMesh = new THREE.Mesh(tetraGeo, new THREE.MeshBasicMaterial({
     color: GOLD,
     transparent: true,
@@ -35,7 +34,6 @@ export function initSolly(scene) {
   }));
   group.add(faceMesh);
 
-  // 100% solid edges, on bloom layer for golden glow
   edgeLines = new THREE.LineSegments(
     new THREE.EdgesGeometry(tetraGeo),
     new THREE.LineBasicMaterial({ color: GOLD.clone() })
@@ -71,11 +69,10 @@ export function updateSolly(time, activeThreads, fingerPositions = [], palmPosit
     }
   }
 
-  // float above palm when hand present and no gravity thread
   let palmTarget = null;
   if (!gravityTarget && palmPositions.length > 0) {
     palmTarget = palmPositions[0].clone();
-    palmTarget.y += 1.2; // hover above the palm
+    palmTarget.y += 1.2;
   }
 
   _tmp.copy(gravityTarget || palmTarget || origin).sub(group.position);
@@ -83,7 +80,6 @@ export function updateSolly(time, activeThreads, fingerPositions = [], palmPosit
   velocity.multiplyScalar(DAMPING);
   group.position.add(velocity);
 
-  // proximity to index finger tips
   let closestFinger = Infinity;
   for (const fp of fingerPositions) {
     const d = group.position.distanceTo(fp);
@@ -104,21 +100,17 @@ export function updateSolly(time, activeThreads, fingerPositions = [], palmPosit
   touchFlash     *= 0.91;
   energizeBoost  *= Math.pow(0.001, 0.016);
 
-  // full 3D tumble — faster when touched or energized
   const rotSpeed = 0.0003 + proximityLevel * 0.0006 + touchFlash * 0.003 + energizeBoost * 0.001;
   group.rotation.y = time * rotSpeed;
   group.rotation.x = time * rotSpeed * 0.6;
   group.rotation.z = time * rotSpeed * 0.35;
 
-  // scale
   const sc = 1 + proximityLevel * 0.2 + touchFlash * 0.45 + 0.06 * Math.sin(time * 0.003);
   group.scale.setScalar(Math.max(0.5, Math.min(sc, 2.5)));
 
-  // edge color: gold → white on proximity/touch
   const colorT = Math.min(proximityLevel * 0.7 + touchFlash, 1);
   edgeLines.material.color.lerpColors(GOLD, WHITE, colorT);
 
-  // face opacity: 50% base, brightens on touch
   faceMesh.material.opacity = 0.50 + proximityLevel * 0.15 + touchFlash * 0.25;
 }
 

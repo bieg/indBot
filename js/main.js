@@ -68,7 +68,6 @@ function _handleGesture(evt) {
   if (evt.type === 'crush') {
     setGestureHint('crush', 'crush');
     crushThreads(evt.originPoint);
-    crushImpulse(evt.originPoint);
     energizeSolly(1.5);
   } else if (evt.type === 'rotate') {
     setGestureHint('rotate', 'rotate');

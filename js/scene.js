@@ -42,7 +42,7 @@ export function initScene() {
 function _buildBloomComposer() {
   const w = window.innerWidth, h = window.innerHeight;
 
-  const bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.5, 0.4, 0.25);
+  const bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.85, 0.5, 0.20);
 
   bloomComposer = new EffectComposer(renderer);
   bloomComposer.renderToScreen = false;
@@ -113,7 +113,7 @@ function _restoreMaterials() {
 export function getScene() { return scene; }
 export function getCamera() { return camera; }
 
-const WORLD_SCALE = 0.6; // compress hand-to-world mapping so closer hands still work
+const WORLD_SCALE = 0.6;
 
 export function mpToWorld(mpX, mpY, z = 0) {
   const aspect = window.innerWidth / window.innerHeight;

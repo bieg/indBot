@@ -4,6 +4,7 @@ import { BLOOM_LAYER } from './scene.js';
 export const activeThreads = [];
 const CRUSH_RADIUS = 2.5;
 const FADE_DURATION = 250;
+const BIRTH_MS = 350;
 
 const THREAD_COLORS = {
   structure: 0xffffff,
@@ -39,27 +40,18 @@ function _buildMesh(type, start, end) {
   if (type === 'structure') {
     const curve = new THREE.CatmullRomCurve3([start, end]);
     const geo = new THREE.TubeGeometry(curve, 20, 0.012, 6, false);
-    const mat = new THREE.MeshBasicMaterial({ color: THREAD_COLORS.structure });
+    const mat = new THREE.MeshBasicMaterial({ color: THREAD_COLORS.structure, transparent: true, opacity: 0 });
     return new THREE.Mesh(geo, mat);
   }
   if (type === 'ghost') {
     const curve = new THREE.CatmullRomCurve3([start, end]);
     const geo = new THREE.TubeGeometry(curve, 20, 0.006, 6, false);
-    const mat = new THREE.MeshBasicMaterial({
-      color: THREAD_COLORS.ghost,
-      transparent: true,
-      opacity: 0.08,
-    });
+    const mat = new THREE.MeshBasicMaterial({ color: THREAD_COLORS.ghost, transparent: true, opacity: 0 });
     return new THREE.Mesh(geo, mat);
   }
-  // energy + gravity — TubeGeometry
   const curve = new THREE.CatmullRomCurve3([start, end]);
   const geo = new THREE.TubeGeometry(curve, 20, 0.02, 6, false);
-  const mat = new THREE.MeshBasicMaterial({
-    color: THREAD_COLORS[type],
-    transparent: type === 'energy',
-    opacity: type === 'energy' ? 0.7 : 1.0,
-  });
+  const mat = new THREE.MeshBasicMaterial({ color: THREAD_COLORS[type], transparent: true, opacity: 0 });
   const mesh = new THREE.Mesh(geo, mat);
   if (type === 'gravity') mesh.layers.enable(BLOOM_LAYER);
   return mesh;
@@ -85,21 +77,27 @@ export function updateThreads(time) {
       }
       if (t.mesh.material) {
         t.mesh.material.transparent = true;
-        t.mesh.material.opacity = Math.max(0, 1 - fadeProgress) * (t.type === 'ghost' ? 0.08 : 0.7);
+        const maxOp = t.type === 'ghost' ? 0.08 : t.type === 'energy' ? 0.7 : 1.0;
+        t.mesh.material.opacity = Math.max(0, 1 - fadeProgress) * maxOp;
       }
       continue;
     }
 
+    const age = now - t.birthTime;
+    const birthFade = Math.min(age / BIRTH_MS, 1.0);
+
     if (!t.permanent) {
-      const age = now - t.birthTime;
       t.strength = Math.max(0, 1 - age / t.lifetime);
       if (t.type === 'energy' && t.mesh.material) {
-        t.mesh.material.opacity = (0.4 + 0.3 * Math.sin(time * 0.006)) * t.strength;
+        t.mesh.material.opacity = (0.4 + 0.3 * Math.sin(time * 0.003)) * t.strength * birthFade;
       }
       if (t.strength <= 0) {
         t.dying = true;
         t.dyingStart = now;
       }
+    } else if (t.mesh.material) {
+      const maxOp = t.type === 'ghost' ? 0.08 : 1.0;
+      t.mesh.material.opacity = birthFade * maxOp;
     }
   }
 }
