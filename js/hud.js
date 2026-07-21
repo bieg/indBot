@@ -168,6 +168,25 @@ const BONE_WIDTHS = [
 // Pinch flash state per hand (decays each frame)
 const _pinchFlash = [0, 0];
 
+// Solid hand silhouette — one fat-stroke pass per bone, round caps merge at joints.
+// Drawn first so everything else renders on top.
+function _renderMembrane(ctx, landmarks, scale, masterOpacity) {
+  const w = skeletonCanvas.width, h = skeletonCanvas.height;
+  ctx.save();
+  ctx.lineCap  = 'round';
+  ctx.lineJoin = 'round';
+  ctx.shadowBlur  = 0;
+  ctx.strokeStyle = `rgba(8,3,30,${0.70 * masterOpacity})`;
+  ctx.lineWidth   = scale * 0.40;   // fat enough so adjacent bones overlap into a solid mass
+  for (const [a, b] of HAND_CONNECTIONS) {
+    ctx.beginPath();
+    ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
+    ctx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // Dark skin base with Arcane neon edge glow.
 // Pass 0: filled palm polygon anchors the hand mass.
 // Passes 1-3: per-bone neon halo → dark fill → purple tint.
@@ -332,7 +351,9 @@ function _renderTrail(ctx, hi, masterOpacity, time) {
     (newest[9].y - newest[0].y) * h
   ) || 80;
 
-  // Solid skin pass — dark body + neon cyan outline (cohesion layer under particles)
+  // Layer 1 — opaque membrane silhouette (30% transparent dark blob)
+  _renderMembrane(ctx, newest, scale, masterOpacity);
+  // Layer 2 — neon outline + purple tint on top of membrane
   _renderSkin(ctx, newest, scale, masterOpacity);
 
   // Velocity: compare newest frame to frame behind it
