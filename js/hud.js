@@ -131,19 +131,39 @@ const PALM_TRIS = [
   [9, 13, 17],
 ];
 
-// Sparkles: dense tiny dots dicht op het bot — magisch glinsterende vlees
-const _SPARKLES = HAND_CONNECTIONS.map(([a, b], bi) => {
-  const N = 70;
+// Bone particles: dichte puntenwolk strak langs elk bot (max 5px scatter)
+const _BONE_PARTS = HAND_CONNECTIONS.map(([a, b], bi) => {
+  const N = 90;
   return Array.from({ length: N }, (_, p) => {
     const t   = ((bi * 37 + p * 13 + 3) % 97) / 97;
     const ang = ((bi * 41 + p * 71 + 13) % 317) / 317 * Math.PI * 2;
-    const r   = ((bi * 31 + p * 19 + 11) % 97) / 97 * 8; // max 8px — tight cluster
+    const r   = ((bi * 31 + p * 19 + 11) % 97) / 97 * 5; // max 5px — strak op bot
     return {
       t,
       dx: Math.cos(ang) * r,
       dy: Math.sin(ang) * r,
-      sz: 0.3 + ((bi * 7 + p * 11) % 10) / 10,  // 0.3–1.3px mini dots
-      al: 0.20 + ((bi * 3 + p * 7) % 45) / 100, // 0.20–0.65 subtiel transparant
+      sz: 0.4 + ((bi * 7 + p * 11) % 14) / 8,  // 0.4–2.1px gevarieerd
+      al: 0.50 + ((bi * 3 + p * 7) % 38) / 100, // 0.50–0.88 helder
+    };
+  });
+});
+
+// Gewrichts-clusters: heldere stippen op elk landmark
+const _JOINT_PARTS = Array.from({ length: 21 }, (_, li) => {
+  const ft = FINGERTIPS.includes(li);
+  const N  = ft ? 24 : 10;
+  const R  = ft ?  7 :  3;
+  return Array.from({ length: N }, (_, p) => {
+    const ang  = ((li * 41 + p * 17) % 317) / 317 * Math.PI * 2;
+    const frac = ((li * 23 + p * 37 + 7) % 97) / 97;
+    const dist = R * frac;
+    return {
+      dx: Math.cos(ang) * dist,
+      dy: Math.sin(ang) * dist,
+      sz: ft ? 0.6 + ((li * 7 + p * 13) % 12) / 8
+             : 0.4 + ((li * 7 + p * 13) % 8)  / 8,
+      al: ft ? 0.60 + ((li * 3 + p * 7) % 32) / 100
+             : 0.45 + ((li * 3 + p * 7) % 30) / 100,
     };
   });
 });
@@ -152,68 +172,20 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
   const X = lm => (1 - lm.x) * w;
   const Y = lm => lm.y * h;
 
-  // ── 1. Soft glowing tubes on offscreen canvas, then blur-composite ────────
-  if (!_blurCanvas) {
-    _blurCanvas = document.createElement('canvas');
-    _blurCtx    = _blurCanvas.getContext('2d');
-  }
-  if (_blurCanvas.width !== w || _blurCanvas.height !== h) {
-    _blurCanvas.width  = w;
-    _blurCanvas.height = h;
-  }
-  const bc = _blurCtx;
-  bc.clearRect(0, 0, w, h);
-  bc.lineCap  = 'round';
-  bc.lineJoin = 'round';
-
-  // Palm — lichte transparante gloed
-  for (const [ia, ib, ic] of PALM_TRIS) {
-    bc.fillStyle = `rgba(255,225,160,${0.14 * opacity})`;
-    bc.beginPath();
-    bc.moveTo(X(landmarks[ia]), Y(landmarks[ia]));
-    bc.lineTo(X(landmarks[ib]), Y(landmarks[ib]));
-    bc.lineTo(X(landmarks[ic]), Y(landmarks[ic]));
-    bc.closePath();
-    bc.fill();
-  }
-
-  // Zachte buitenste gloed (breed maar doorzichtig)
-  bc.lineCap = 'round'; bc.lineJoin = 'round';
-  for (const [a, b] of HAND_CONNECTIONS) {
-    bc.strokeStyle = `rgba(255,210,130,${0.55 * opacity})`;
-    bc.lineWidth = 5;
-    bc.beginPath();
-    bc.moveTo(X(landmarks[a]), Y(landmarks[a]));
-    bc.lineTo(X(landmarks[b]), Y(landmarks[b]));
-    bc.stroke();
-  }
-
-  // Heldere kern — dun, helder
-  for (const [a, b] of HAND_CONNECTIONS) {
-    bc.strokeStyle = `rgba(255,252,230,${0.90 * opacity})`;
-    bc.lineWidth = 1.5;
-    bc.beginPath();
-    bc.moveTo(X(landmarks[a]), Y(landmarks[a]));
-    bc.lineTo(X(landmarks[b]), Y(landmarks[b]));
-    bc.stroke();
-  }
-
-  // Gewrichtsknopen
-  for (let li = 0; li < 21; li++) {
-    bc.fillStyle = `rgba(255,255,245,${opacity})`;
-    bc.beginPath();
-    bc.arc(X(landmarks[li]), Y(landmarks[li]), FINGERTIPS.includes(li) ? 3 : 2, 0, Math.PI * 2);
-    bc.fill();
-  }
-
-  // Kleine blur → zachte randen, geen dikke worst (3px = ~20px breed totaal)
+  // 1. Dunne skelet-lijnen — nauwelijks zichtbaar, geven structuur
   ctx.save();
-  ctx.filter = 'blur(3px)';
-  ctx.drawImage(_blurCanvas, 0, 0);
-  ctx.filter = 'none';
+  ctx.strokeStyle = `rgba(255,255,255,${0.18 * opacity})`;
+  ctx.lineWidth = 0.6;
+  ctx.lineCap = 'round';
+  for (const [a, b] of HAND_CONNECTIONS) {
+    ctx.beginPath();
+    ctx.moveTo(X(landmarks[a]), Y(landmarks[a]));
+    ctx.lineTo(X(landmarks[b]), Y(landmarks[b]));
+    ctx.stroke();
+  }
   ctx.restore();
 
-  // ── 2. Sparkle overlay — tiny bright dots for texture/depth ───────────────
+  // 2. Puntenwolk langs elk bot — glinsterende magische punten
   for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
     const [a, b] = HAND_CONNECTIONS[bi];
     const ax = X(landmarks[a]), ay = Y(landmarks[a]);
@@ -221,8 +193,8 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     const edx = bx - ax, edy = by - ay;
     const len = Math.sqrt(edx * edx + edy * edy) || 1;
     const nx = -edy / len, ny = edx / len;
-    for (const p of _SPARKLES[bi]) {
-      ctx.fillStyle = `rgba(255,253,235,${p.al * opacity})`;
+    for (const p of _BONE_PARTS[bi]) {
+      ctx.fillStyle = `rgba(255,252,240,${p.al * opacity})`;
       ctx.beginPath();
       ctx.arc(
         ax + edx * p.t + nx * p.dx + (edx / len) * p.dy,
@@ -233,16 +205,27 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     }
   }
 
-  // ── 3. Fingertip halos — soft radial gradient ─────────────────────────────
+  // 3. Gewrichts-clusters — heldere knooppunten op elk landmark
+  for (let li = 0; li < 21; li++) {
+    const cx = X(landmarks[li]), cy = Y(landmarks[li]);
+    for (const p of _JOINT_PARTS[li]) {
+      ctx.fillStyle = `rgba(255,255,245,${p.al * opacity})`;
+      ctx.beginPath();
+      ctx.arc(cx + p.dx, cy + p.dy, p.sz, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 4. Vingertoppen-halo — zachte gloei-cirkel
   for (const li of FINGERTIPS) {
     const cx = X(landmarks[li]), cy = Y(landmarks[li]);
-    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 26);
-    g.addColorStop(0,   `rgba(255,255,220,${0.60 * opacity})`);
-    g.addColorStop(0.4, `rgba(255,240,155,${0.22 * opacity})`);
-    g.addColorStop(1,   'rgba(255,215,80,0)');
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 14);
+    g.addColorStop(0,   `rgba(255,255,230,${0.45 * opacity})`);
+    g.addColorStop(0.5, `rgba(255,245,180,${0.12 * opacity})`);
+    g.addColorStop(1,   'rgba(255,220,100,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(cx, cy, 26, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 14, 0, Math.PI * 2);
     ctx.fill();
   }
 }
