@@ -101,7 +101,7 @@ export function updateThreadCount(count) {
 // Result: moving hand leaves organic particle trails, still hand = tight cloud.
 
 const TRAIL_DEPTH = 20;   // frames of history
-const SCATTER_N   = 12;   // particles per landmark per trail frame
+const SCATTER_N   = 30;   // particles per landmark per trail frame
 
 // Per-hand ring buffers: each slot holds an array of 21 landmarks | null
 const _trail = [
@@ -134,6 +134,38 @@ const _LM_R = [
 
 const FINGERTIPS = [4, 8, 12, 16, 20];
 
+// Membrane blob radius per landmark (fraction of hand scale).
+// Blobs are large enough so adjacent landmarks overlap → continuous film/vlies.
+const _MEMBRANE_R = [
+  0.30,                               // 0  wrist
+  0.14, 0.13, 0.12, 0.11,            // 1-4  thumb
+  0.15, 0.13, 0.12, 0.12,            // 5-8  index
+  0.15, 0.13, 0.12, 0.12,            // 9-12 middle
+  0.15, 0.13, 0.12, 0.12,            // 13-16 ring
+  0.13, 0.11, 0.10, 0.10,            // 17-20 pinky
+];
+
+// Soft overlapping blobs at each landmark of the current frame.
+// Creates a subtle translucent skin (vlies) that fills gaps between particles.
+function _renderMembrane(ctx, landmarks, scale, masterOpacity) {
+  const w = skeletonCanvas.width, h = skeletonCanvas.height;
+  for (let li = 0; li < 21; li++) {
+    const lm = landmarks[li];
+    const cx = (1 - lm.x) * w;   // mirror-corrected
+    const cy = lm.y * h;
+    const r  = _MEMBRANE_R[li] * scale;
+    const bA = 0.058 * masterOpacity;
+    const g  = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0,    `rgba(220,235,255,${bA})`);
+    g.addColorStop(0.6,  `rgba(200,225,255,${bA * 0.45})`);
+    g.addColorStop(1,    'rgba(180,215,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function _renderTrail(ctx, hi, masterOpacity, time) {
   const ring = _trail[hi];
   const head = _trailHead[hi];
@@ -147,10 +179,15 @@ function _renderTrail(ctx, hi, masterOpacity, time) {
   if (frames.length === 0) return;
 
   const newest = frames[0];
+  const w = skeletonCanvas.width, h = skeletonCanvas.height;
+  // Scale: wrist–MCP9 distance. X differences cancel the mirror, so no flip needed here.
   const scale  = Math.hypot(
-    (newest[9].x - newest[0].x) * skeletonCanvas.width,
-    (newest[9].y - newest[0].y) * skeletonCanvas.height
+    (newest[9].x - newest[0].x) * w,
+    (newest[9].y - newest[0].y) * h
   ) || 80;
+
+  // Membrane / vlies — soft skin layer under the particles
+  _renderMembrane(ctx, newest, scale, masterOpacity);
 
   // Velocity: compare newest frame to frame behind it
   let velFactor = 0;
@@ -179,8 +216,8 @@ function _renderTrail(ctx, hi, masterOpacity, time) {
 
     for (let li = 0; li < 21; li++) {
       const lm  = lms[li];
-      const cx  = lm.x * skeletonCanvas.width;
-      const cy  = lm.y * skeletonCanvas.height;
+      const cx  = (1 - lm.x) * w;   // mirror-corrected: matches CSS scaleX(-1) on webcam
+      const cy  = lm.y * h;
       const baseR = _LM_R[li] * scale * velSpread;
       const shimmer = 1 + Math.sin(time * 0.0022 + li * 0.47 + fi * 0.31) * 0.14;
 
@@ -217,8 +254,8 @@ function _renderTrail(ctx, hi, masterOpacity, time) {
   // Soft fingertip halo on the current (newest) frame only
   for (const li of FINGERTIPS) {
     const lm = newest[li];
-    const cx = lm.x * skeletonCanvas.width;
-    const cy = lm.y * skeletonCanvas.height;
+    const cx = (1 - lm.x) * w;   // mirror-corrected
+    const cy = lm.y * h;
     const r  = _LM_R[li] * scale * 2.2;
     const g  = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
     g.addColorStop(0,   `rgba(210,240,255,${0.22 * masterOpacity})`);
