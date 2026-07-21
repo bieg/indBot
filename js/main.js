@@ -104,7 +104,7 @@ function _loop(time) {
   updateThreadCount(activeThreads.length);
 
   const handInfos = [getHandInfo(0), getHandInfo(1)];
-  drawSkeleton(hands.latestResult, handInfos);
+  drawSkeleton(hands.latestResult, handInfos, time);
 
   render();
 }
