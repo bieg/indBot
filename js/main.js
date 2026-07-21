@@ -3,7 +3,7 @@ import { initHands, detectHands, setOnGesture, getHandGrowingState, getHandInfo 
 import * as hands from './hands.js';
 import { initStarfield, updateStarfield, crushImpulse, rotateImpulse } from './starfield.js';
 import { createThread, updateThreads, activeThreads, crushThreads } from './threads.js';
-import { initSolly, updateSolly, energizeSolly, setOnSollyTouch } from './solly.js';
+// import { initSolly, updateSolly, energizeSolly, setOnSollyTouch } from './solly.js';
 import { initAudio, resumeAudio, playGestureSound } from './audio.js';
 import { initHud, setGestureHint, updateThreadCount, drawSkeleton } from './hud.js';
 
@@ -16,16 +16,14 @@ const errorMsg = document.getElementById('error-msg');
 initScene();
 const scene = getScene();
 initStarfield(scene);
-initSolly(scene);
 initHud();
-setOnSollyTouch(() => playGestureSound('solly-touch'));
 requestAnimationFrame(_preLoop);
 
 function _preLoop(time) {
   if (!_preLoop.running) return;
   requestAnimationFrame(_preLoop);
   updateStarfield(time, []);
-  updateSolly(time, [], [], []);
+  // updateSolly(time, [], [], []);
   render();
 }
 _preLoop.running = true;
@@ -68,7 +66,7 @@ function _handleGesture(evt) {
   if (evt.type === 'crush') {
     setGestureHint('crush', 'crush');
     crushThreads(evt.originPoint);
-    energizeSolly(1.5);
+    // energizeSolly(1.5);
   } else if (evt.type === 'rotate') {
     setGestureHint('rotate', 'rotate');
     rotateImpulse(evt.originPoint, evt.direction);
@@ -92,20 +90,17 @@ function _loop(time) {
     if (hint && hint !== 'crush') setGestureHint(hint, 'growing');
   }
 
-  // collect finger tip + palm positions for Solly proximity and attraction
-  const fingerPositions = [];
-  const palmPositions   = [];
+  // collect index fingertip positions for star touch
+  const indexTips = [];
   for (const hi of [0, 1]) {
     const info = getHandInfo(hi);
     if (info.present && !info.orienting) {
-      fingerPositions.push(mpToWorld(info.tipsMp[0].x, info.tipsMp[0].y));
-      if (info.palmMp) palmPositions.push(mpToWorld(info.palmMp.x, info.palmMp.y));
+      indexTips.push(mpToWorld(info.tipsMp[0].x, info.tipsMp[0].y));
     }
   }
 
-  updateStarfield(time, activeThreads);
+  updateStarfield(time, activeThreads, indexTips);
   updateThreads(time);
-  updateSolly(time, activeThreads, fingerPositions, palmPositions);
   updateThreadCount(activeThreads.length);
 
   const handInfos = [getHandInfo(0), getHandInfo(1)];

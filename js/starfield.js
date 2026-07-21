@@ -80,7 +80,10 @@ export function initStarfield(scene) {
 
 const _tmp = new THREE.Vector3();
 
-export function updateStarfield(time, activeThreads) {
+const TOUCH_RADIUS = 0.6;
+const TOUCH_IMPULSE = 0.06;
+
+export function updateStarfield(time, activeThreads, indexTips = []) {
   for (let i = 0; i < COUNT; i++) {
     const i3 = i * 3;
     const px = positions[i3], py = positions[i3 + 1], pz = positions[i3 + 2];
@@ -108,6 +111,17 @@ export function updateStarfield(time, activeThreads) {
           velocities[i3]     += (Math.random() - 0.5) * 0.003 * thread.strength;
           velocities[i3 + 1] += (Math.random() - 0.5) * 0.003 * thread.strength;
         }
+      }
+    }
+
+    // wijsvinger aantikken → ster weg duwen
+    for (const tip of indexTips) {
+      const tx = tip.x - px, ty = tip.y - py;
+      const td = Math.sqrt(tx * tx + ty * ty);
+      if (td < TOUCH_RADIUS && td > 0.001) {
+        const impulse = TOUCH_IMPULSE / Math.max(td, 0.15);
+        velocities[i3]     -= (tx / td) * impulse;
+        velocities[i3 + 1] -= (ty / td) * impulse;
       }
     }
 
