@@ -5,36 +5,27 @@ const THREAD_COLORS = {
   ghost: 'rgba(255,255,255,0.4)',
 };
 
-const HAND_CONNECTIONS = [
-  [0,1],[1,2],[2,3],[3,4],
-  [0,5],[5,6],[6,7],[7,8],
-  [0,9],[9,10],[10,11],[11,12],
-  [0,13],[13,14],[14,15],[15,16],
-  [0,17],[17,18],[18,19],[19,20],
-  [5,9],[9,13],[13,17],
-];
+const ORIENTATION_MS = 1000;
+const FADE_DURATION  = 400;
+const OPACITY_HOLD   = 1.0;
+const OPACITY_END    = 0.95;
 
-const ORIENTATION_MS  = 1000;
-const FADE_DURATION   = 400;
-const OPACITY_HOLD    = 1.0;
-const OPACITY_END     = 0.95;
-
-let gestureEl = null;
+let gestureEl     = null;
 let threadCountEl = null;
-let hand0dot = null;
-let hand1dot = null;
+let hand0dot      = null;
+let hand1dot      = null;
 let skeletonCanvas = null;
-let skeletonCtx = null;
-let flashTimeout = null;
-let lastCount = -1;
+let skeletonCtx   = null;
+let flashTimeout  = null;
+let lastCount     = -1;
 
 const handFirstSeen = [null, null];
 
 export function initHud() {
-  gestureEl = document.getElementById('gesture-indicator');
+  gestureEl     = document.getElementById('gesture-indicator');
   threadCountEl = document.getElementById('thread-count');
   skeletonCanvas = document.getElementById('skeleton-canvas');
-  skeletonCtx = skeletonCanvas.getContext('2d');
+  skeletonCtx   = skeletonCanvas.getContext('2d');
 
   const hud = document.getElementById('hud');
   const indicators = document.createElement('div');
@@ -61,7 +52,7 @@ function _makeDot() {
 }
 
 function _resizeSkeleton() {
-  skeletonCanvas.width = window.innerWidth;
+  skeletonCanvas.width  = window.innerWidth;
   skeletonCanvas.height = window.innerHeight;
 }
 
@@ -79,25 +70,19 @@ export function setGestureHint(type, state) {
     gestureEl.textContent = `✦ ${type.toUpperCase()} THREAD`;
     gestureEl.style.opacity = '1';
     clearTimeout(flashTimeout);
-    flashTimeout = setTimeout(() => {
-      if (gestureEl) gestureEl.style.opacity = '0';
-    }, 600);
+    flashTimeout = setTimeout(() => { if (gestureEl) gestureEl.style.opacity = '0'; }, 600);
   } else if (state === 'crush') {
     gestureEl.style.color = '#ff6633';
     gestureEl.textContent = '✦ CRUSH';
     gestureEl.style.opacity = '1';
     clearTimeout(flashTimeout);
-    flashTimeout = setTimeout(() => {
-      if (gestureEl) gestureEl.style.opacity = '0';
-    }, 400);
+    flashTimeout = setTimeout(() => { if (gestureEl) gestureEl.style.opacity = '0'; }, 400);
   } else if (state === 'rotate') {
     gestureEl.style.color = '#cc88ff';
     gestureEl.textContent = '↻ ROTATE';
     gestureEl.style.opacity = '1';
     clearTimeout(flashTimeout);
-    flashTimeout = setTimeout(() => {
-      if (gestureEl) gestureEl.style.opacity = '0';
-    }, 500);
+    flashTimeout = setTimeout(() => { if (gestureEl) gestureEl.style.opacity = '0'; }, 500);
   } else {
     gestureEl.style.opacity = '0';
   }
@@ -109,139 +94,140 @@ export function updateThreadCount(count) {
   threadCountEl.textContent = `Threads: ${count}`;
 }
 
+// ─── Motion-Trail Point Cloud ─────────────────────────────────────────────────
+// Maintains a ring buffer of past landmark frames per hand.
+// Each frame's 21 landmarks emit a scatter cloud of particles.
+// Oldest frames are nearly transparent → newest are bright.
+// Result: moving hand leaves organic particle trails, still hand = tight cloud.
+
+const TRAIL_DEPTH = 20;   // frames of history
+const SCATTER_N   = 12;   // particles per landmark per trail frame
+
+// Per-hand ring buffers: each slot holds an array of 21 landmarks | null
+const _trail = [
+  Array.from({ length: TRAIL_DEPTH }, () => null),
+  Array.from({ length: TRAIL_DEPTH }, () => null),
+];
+const _trailHead = [0, 0];       // ring buffer write pointer
+const _prevLms   = [null, null]; // previous frame landmarks for velocity
+
+// Pre-baked deterministic scatter offsets per landmark
+// (angle, normalized radius fraction, base size, base alpha)
+const _SCATTER = Array.from({ length: 21 }, (_, li) =>
+  Array.from({ length: SCATTER_N }, (_, k) => ({
+    ang:   ((li * 41 + k * 17) % 317) / 317 * Math.PI * 2,
+    rfrac: 0.18 + ((li * 23 + k * 37 + 7) % 82) / 100,  // 0.18 – 1.00
+    sz:    0.45 + ((li * 7  + k * 13 + 3) % 10) / 7,     // 0.45 – 1.88
+    al:    0.40 + ((li * 13 + k * 7)      % 42) / 100,   // 0.40 – 0.82
+  }))
+);
+
+// Cloud radius per landmark (fraction of hand scale = wrist–MCP9 distance)
+const _LM_R = [
+  0.13,                           // 0  wrist
+  0.07, 0.07, 0.06, 0.10,         // 1-4  thumb
+  0.08, 0.07, 0.06, 0.10,         // 5-8  index
+  0.08, 0.07, 0.06, 0.10,         // 9-12 middle
+  0.08, 0.07, 0.06, 0.10,         // 13-16 ring
+  0.07, 0.06, 0.05, 0.09,         // 17-20 pinky
+];
+
 const FINGERTIPS = [4, 8, 12, 16, 20];
-const KNUCKLE_SET = new Set([5, 6, 9, 10, 13, 14, 17, 18]);
 
-const PALM_TRIS = [
-  [0, 1, 5],
-  [0, 5, 9],
-  [0, 9, 13],
-  [0, 13, 17],
-  [5, 6, 9],
-  [9, 10, 13],
-  [13, 14, 17],
-  [5, 9, 13],
-  [9, 13, 17],
-];
+function _renderTrail(ctx, hi, masterOpacity, time) {
+  const ring = _trail[hi];
+  const head = _trailHead[hi];
 
-// Capsule-based solid hand renderer — fills each finger bone with an opaque pill shape,
-// then overlays a neon cyan/purple glow outline (Arcane aesthetic).
-// This makes the hand look solid (from the outside) rather than a see-through wireframe.
+  // Collect non-null frames in age order: index 0 = newest, index N-1 = oldest
+  const frames = [];
+  for (let d = 0; d < TRAIL_DEPTH; d++) {
+    const idx = (head - 1 - d + TRAIL_DEPTH) % TRAIL_DEPTH;
+    if (ring[idx] !== null) frames.push(ring[idx]);
+  }
+  if (frames.length === 0) return;
 
-// Capsule radii as fraction of wrist→middle-MCP hand scale
-const _RSCALE = [
-  0.090, 0.082, 0.072, 0.058,  // thumb
-  0.095, 0.085, 0.072, 0.058,  // index
-  0.100, 0.090, 0.076, 0.062,  // middle
-  0.095, 0.085, 0.072, 0.058,  // ring
-  0.082, 0.070, 0.058, 0.046,  // pinky
-  0.075, 0.075, 0.075,          // palm knuckle connectors
-];
+  const newest = frames[0];
+  const scale  = Math.hypot(
+    (newest[9].x - newest[0].x) * skeletonCanvas.width,
+    (newest[9].y - newest[0].y) * skeletonCanvas.height
+  ) || 80;
 
-// Builds a capsule (pill) path between (ax,ay) and (bx,by) with radius r
-function _capsule(ctx, ax, ay, bx, by, r) {
-  const dx = bx - ax, dy = by - ay;
-  const len = Math.hypot(dx, dy);
-  if (len < 0.5) { ctx.beginPath(); ctx.arc(ax, ay, r, 0, Math.PI * 2); return; }
-  const nx = -dy / len, ny = dx / len;
-  const ang = Math.atan2(ny, nx);
-  ctx.beginPath();
-  ctx.arc(bx, by, r, ang, ang + Math.PI);
-  ctx.arc(ax, ay, r, ang + Math.PI, ang + Math.PI * 2);
-  ctx.closePath();
-}
+  // Velocity: compare newest frame to frame behind it
+  let velFactor = 0;
+  if (frames.length >= 2) {
+    const prev = frames[1];
+    let sumD = 0;
+    const keyLms = [0, 4, 8, 12, 16, 20];
+    for (const li of keyLms) {
+      const dx = (newest[li].x - prev[li].x) * skeletonCanvas.width;
+      const dy = (newest[li].y - prev[li].y) * skeletonCanvas.height;
+      sumD += Math.sqrt(dx * dx + dy * dy);
+    }
+    velFactor = Math.min(sumD / keyLms.length / 12, 1); // 12px/frame = max
+  }
 
-function _drawHand(ctx, landmarks, w, h, opacity = 1, time = 0) {
-  const pts = landmarks.map(lm => ({ x: lm.x * w, y: lm.y * h, z: lm.z || 0 }));
+  const velSpread = 1 + velFactor * 2.2;   // 1× still → 3.2× fast
+  const N = frames.length;
 
-  // Hand scale: wrist (0) → middle MCP (9)
-  const scale = Math.hypot(pts[9].x - pts[0].x, pts[9].y - pts[0].y) || 80;
+  // Render oldest → newest so newest sits on top
+  for (let fi = N - 1; fi >= 0; fi--) {
+    const lms = frames[fi];
+    // trailT: 0 = oldest, 1 = newest
+    const trailT = 1 - fi / Math.max(N - 1, 1);
+    // Quadratic fade: old frames very faint, newest frame full
+    const frameAlpha = trailT * trailT * masterOpacity;
 
-  const palmRing = [0, 1, 5, 9, 13, 17];
-  const fillC = `rgba(8,4,22,${0.92 * opacity})`;
+    for (let li = 0; li < 21; li++) {
+      const lm  = lms[li];
+      const cx  = lm.x * skeletonCanvas.width;
+      const cy  = lm.y * skeletonCanvas.height;
+      const baseR = _LM_R[li] * scale * velSpread;
+      const shimmer = 1 + Math.sin(time * 0.0022 + li * 0.47 + fi * 0.31) * 0.14;
 
-  // === PASS 1: dark solid fill builds opaque silhouette ===
-  ctx.save();
-  ctx.fillStyle = fillC;
+      for (const off of _SCATTER[li]) {
+        const r  = baseR * off.rfrac;
+        const px = cx + Math.cos(off.ang) * r;
+        const py = cy + Math.sin(off.ang) * r;
+        const a  = Math.min(1, off.al * frameAlpha * shimmer);
+        if (a < 0.01) continue;
 
-  ctx.beginPath();
-  ctx.moveTo(pts[palmRing[0]].x, pts[palmRing[0]].y);
-  for (let i = 1; i < palmRing.length; i++) ctx.lineTo(pts[palmRing[i]].x, pts[palmRing[i]].y);
-  ctx.closePath();
-  ctx.fill();
+        // Color temperature: slightly warm at fingertips on recent frames,
+        // cool blue-white elsewhere — all very close to white.
+        const isTip = FINGERTIPS.includes(li);
+        let color;
+        if (isTip && trailT > 0.6) {
+          // bright warm white at fingertip newest frames
+          color = `rgba(255,248,230,${a})`;
+        } else if (trailT > 0.75) {
+          // brightest newest particles: pure white
+          color = `rgba(255,255,255,${a})`;
+        } else {
+          // trail fades to cool pale blue-white
+          color = `rgba(200,225,255,${a})`;
+        }
 
-  for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
-    const [la, lb] = HAND_CONNECTIONS[bi];
-    _capsule(ctx, pts[la].x, pts[la].y, pts[lb].x, pts[lb].y, _RSCALE[bi] * scale);
-    ctx.fillStyle = fillC;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(px, py, off.sz, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Soft fingertip halo on the current (newest) frame only
+  for (const li of FINGERTIPS) {
+    const lm = newest[li];
+    const cx = lm.x * skeletonCanvas.width;
+    const cy = lm.y * skeletonCanvas.height;
+    const r  = _LM_R[li] * scale * 2.2;
+    const g  = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    g.addColorStop(0,   `rgba(210,240,255,${0.22 * masterOpacity})`);
+    g.addColorStop(0.5, `rgba(160,210,255,${0.07 * masterOpacity})`);
+    g.addColorStop(1,   'rgba(120,180,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
-  }
-
-  ctx.restore();
-
-  // === PASS 2: neon glow outlines ===
-  ctx.save();
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-
-  ctx.shadowColor = 'rgba(0,200,255,0.9)';
-  ctx.shadowBlur = 10;
-  ctx.strokeStyle = `rgba(0,185,255,${0.68 * opacity})`;
-  ctx.lineWidth = 1.6;
-  for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
-    const [la, lb] = HAND_CONNECTIONS[bi];
-    _capsule(ctx, pts[la].x, pts[la].y, pts[lb].x, pts[lb].y, _RSCALE[bi] * scale);
-    ctx.stroke();
-  }
-
-  ctx.shadowColor = 'rgba(110,30,220,0.75)';
-  ctx.shadowBlur = 14;
-  ctx.strokeStyle = `rgba(100,40,210,${0.50 * opacity})`;
-  ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  ctx.moveTo(pts[palmRing[0]].x, pts[palmRing[0]].y);
-  for (let i = 1; i < palmRing.length; i++) ctx.lineTo(pts[palmRing[i]].x, pts[palmRing[i]].y);
-  ctx.closePath();
-  ctx.stroke();
-
-  ctx.restore();
-
-  // === PASS 3: fingertip halos + joint sparkles ===
-  const tipR  = scale * 0.10;
-  const jointR = scale * 0.055;
-
-  for (const li of [0, 4, 5, 8, 9, 12, 13, 16, 17, 20]) {
-    const p = pts[li];
-    const isTip = FINGERTIPS.includes(li);
-    const R = isTip ? tipR : jointR;
-
-    if (isTip) {
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R * 1.4);
-      g.addColorStop(0,    `rgba(90,220,255,${0.50 * opacity})`);
-      g.addColorStop(0.55, `rgba(60,130,255,${0.15 * opacity})`);
-      g.addColorStop(1,    'rgba(80,50,255,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, R * 1.4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    const N = isTip ? 8 : 5;
-    const shimmer = 1 + Math.sin(time * 0.003 + li * 0.73) * 0.22;
-    for (let k = 0; k < N; k++) {
-      const ang  = ((li * 41 + k * 17) % 317) / 317 * Math.PI * 2;
-      const frac = 0.3 + ((li * 23 + k * 37 + 7) % 70) / 100;
-      const cr   = (li * 17 + k * 29) % 12;
-      const a    = Math.min(1, 0.70 * opacity * shimmer);
-      ctx.fillStyle = cr < 3  ? `rgba(255,215,0,${a})`
-                    : cr < 7  ? `rgba(0,210,255,${a})`
-                    : cr < 10 ? `rgba(145,50,255,${a})`
-                    :            `rgba(255,255,255,${a})`;
-      ctx.beginPath();
-      ctx.arc(p.x + Math.cos(ang) * R * frac, p.y + Math.sin(ang) * R * frac,
-              isTip ? 1.8 : 1.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
   }
 }
 
@@ -254,30 +240,39 @@ export function drawSkeleton(handsResults, handInfos, time = 0) {
   const now = performance.now();
 
   for (let hi = 0; hi < 2; hi++) {
-    const dot = hi === 0 ? hand0dot : hand1dot;
-    const landmarks = handsResults && handsResults.landmarks ? handsResults.landmarks[hi] : null;
-    const info = handInfos ? handInfos[hi] : null;
+    const dot       = hi === 0 ? hand0dot : hand1dot;
+    const landmarks = handsResults?.landmarks?.[hi] ?? null;
+    const info      = handInfos?.[hi] ?? null;
 
     if (!landmarks) {
+      // Clear history when hand disappears
+      _trail[hi].fill(null);
       handFirstSeen[hi] = null;
       if (dot) {
         dot.style.background = 'rgba(255,255,255,0.15)';
-        dot.style.boxShadow = 'none';
+        dot.style.boxShadow  = 'none';
       }
       continue;
     }
 
+    // Update HUD dot
     if (dot) {
-      const orienting = info && info.orienting;
+      const orienting = info?.orienting;
       if (orienting) {
         dot.style.background = 'rgba(255,255,255,0.9)';
-        dot.style.boxShadow = '0 0 8px 3px rgba(255,255,255,0.5)';
+        dot.style.boxShadow  = '0 0 8px 3px rgba(255,255,255,0.5)';
       } else {
         dot.style.background = '#ffcc33';
-        dot.style.boxShadow = '0 0 6px 2px rgba(255,204,51,0.6)';
+        dot.style.boxShadow  = '0 0 6px 2px rgba(255,204,51,0.6)';
       }
     }
 
+    // Push current landmarks into ring buffer
+    const head = _trailHead[hi];
+    _trail[hi][head] = landmarks;
+    _trailHead[hi]   = (head + 1) % TRAIL_DEPTH;
+
+    // Opacity fade-in
     if (handFirstSeen[hi] === null) handFirstSeen[hi] = now;
     const elapsed = now - handFirstSeen[hi];
     let opacity;
@@ -288,32 +283,33 @@ export function drawSkeleton(handsResults, handInfos, time = 0) {
       opacity = OPACITY_HOLD + (OPACITY_END - OPACITY_HOLD) * t;
     }
 
-    _drawHand(skeletonCtx, landmarks, w, h, opacity, time);
+    _renderTrail(skeletonCtx, hi, opacity, time);
 
-    if (info && info.present) {
+    // Gesture progress arcs (thumb tracker)
+    if (info?.present) {
       const FINGERS = ['structure', 'energy', 'gravity', 'ghost'];
       for (let fi = 0; fi < 4; fi++) {
         if (info.fingerStates[fi] !== 'growing') continue;
-        const ratio = info.ratios[fi];
-        const armT = info.armThresholds[fi];
-        const relT = info.releaseThresholds[fi];
+        const ratio    = info.ratios[fi];
+        const armT     = info.armThresholds[fi];
+        const relT     = info.releaseThresholds[fi];
         const progress = Math.max(0, Math.min(1, (ratio - relT) / (armT - relT)));
         if (progress <= 0) continue;
 
-        const tx = (1 - info.thumbMp.x) * w;
-        const ty = info.thumbMp.y * h;
+        const tx    = (1 - info.thumbMp.x) * w;
+        const ty    = info.thumbMp.y * h;
         const color = THREAD_COLORS[FINGERS[fi]];
 
         skeletonCtx.beginPath();
         skeletonCtx.arc(tx, ty, 14, 0, Math.PI * 2);
         skeletonCtx.strokeStyle = 'rgba(255,255,255,0.12)';
-        skeletonCtx.lineWidth = 2;
+        skeletonCtx.lineWidth   = 2;
         skeletonCtx.stroke();
 
         skeletonCtx.beginPath();
         skeletonCtx.arc(tx, ty, 14, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
         skeletonCtx.strokeStyle = color;
-        skeletonCtx.lineWidth = 2.5;
+        skeletonCtx.lineWidth   = 2.5;
         skeletonCtx.stroke();
       }
     }
