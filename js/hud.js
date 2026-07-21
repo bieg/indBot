@@ -155,35 +155,143 @@ const _LM_R = [
 
 const FINGERTIPS = [4, 8, 12, 16, 20];
 
-// Membrane blob radius per landmark (fraction of hand scale).
-// Blobs are large enough so adjacent landmarks overlap → continuous film/vlies.
-const _MEMBRANE_R = [
-  0.30,                               // 0  wrist
-  0.14, 0.13, 0.12, 0.11,            // 1-4  thumb
-  0.15, 0.13, 0.12, 0.12,            // 5-8  index
-  0.15, 0.13, 0.12, 0.12,            // 9-12 middle
-  0.15, 0.13, 0.12, 0.12,            // 13-16 ring
-  0.13, 0.11, 0.10, 0.10,            // 17-20 pinky
+// Bone diameter as fraction of hand scale — drives the dark skin + neon glow width
+const BONE_WIDTHS = [
+  0.16, 0.14, 0.12, 0.10,  // thumb
+  0.17, 0.15, 0.13, 0.10,  // index
+  0.18, 0.16, 0.13, 0.11,  // middle
+  0.17, 0.15, 0.13, 0.10,  // ring
+  0.14, 0.12, 0.10, 0.08,  // pinky
+  0.16, 0.16, 0.16,          // knuckle row
 ];
 
-// Soft overlapping blobs at each landmark of the current frame.
-// Creates a subtle translucent skin (vlies) that fills gaps between particles.
-function _renderMembrane(ctx, landmarks, scale, masterOpacity) {
+// Pinch flash state per hand (decays each frame)
+const _pinchFlash = [0, 0];
+
+// Dark skin base with Arcane neon edge glow.
+// Two-pass per bone: wide neon halo first (glow bleeds outward),
+// then narrower dark fill on top → visible cyan ring around every finger.
+function _renderSkin(ctx, landmarks, scale, masterOpacity) {
   const w = skeletonCanvas.width, h = skeletonCanvas.height;
+  ctx.save();
+  ctx.lineCap  = 'round';
+  ctx.lineJoin = 'round';
+
+  // Pass 1 — neon cyan halo (shadowBlur extends outward past the stroke edge)
+  ctx.shadowColor = 'rgba(0,195,245,0.70)';
+  ctx.shadowBlur  = 14;
+  for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
+    const [a, b] = HAND_CONNECTIONS[bi];
+    ctx.lineWidth   = BONE_WIDTHS[bi] * scale;
+    ctx.strokeStyle = `rgba(0,175,230,${0.13 * masterOpacity})`;
+    ctx.beginPath();
+    ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
+    ctx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
+    ctx.stroke();
+  }
+
+  // Pass 2 — dark Arcane interior (covers the halo centre, leaves glowing rim)
+  ctx.shadowBlur  = 0;
+  for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
+    const [a, b] = HAND_CONNECTIONS[bi];
+    ctx.lineWidth   = BONE_WIDTHS[bi] * scale * 0.70;
+    ctx.strokeStyle = `rgba(5,2,22,${0.92 * masterOpacity})`;
+    ctx.beginPath();
+    ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
+    ctx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
+    ctx.stroke();
+  }
+
+  // Pass 3 — inner Arcane purple tint (thin, adds colour depth to skin interior)
+  ctx.shadowBlur  = 0;
+  for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
+    const [a, b] = HAND_CONNECTIONS[bi];
+    ctx.lineWidth   = BONE_WIDTHS[bi] * scale * 0.38;
+    ctx.strokeStyle = `rgba(40,10,90,${0.22 * masterOpacity})`;
+    ctx.beginPath();
+    ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
+    ctx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// Arcane joint accent dots — bright node at each joint, gold at fingertips
+function _renderJoints(ctx, landmarks, scale, masterOpacity) {
+  const w = skeletonCanvas.width, h = skeletonCanvas.height;
+  ctx.save();
   for (let li = 0; li < 21; li++) {
-    const lm = landmarks[li];
-    const cx = (1 - lm.x) * w;   // mirror-corrected
-    const cy = lm.y * h;
-    const r  = _MEMBRANE_R[li] * scale;
-    const bA = 0.058 * masterOpacity;
-    const g  = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    g.addColorStop(0,    `rgba(220,235,255,${bA})`);
-    g.addColorStop(0.6,  `rgba(200,225,255,${bA * 0.45})`);
-    g.addColorStop(1,    'rgba(180,215,255,0)');
-    ctx.fillStyle = g;
+    const lm  = landmarks[li];
+    const cx  = (1 - lm.x) * w;
+    const cy  = lm.y * h;
+    const tip = FINGERTIPS.includes(li);
+    const r   = (tip ? 0.055 : 0.032) * scale;
+
+    ctx.shadowColor = tip ? 'rgba(255,200,60,0.9)' : 'rgba(0,200,255,0.8)';
+    ctx.shadowBlur  = tip ? 10 : 6;
+    ctx.fillStyle   = tip
+      ? `rgba(255,215,80,${0.80 * masterOpacity})`
+      : `rgba(0,210,255,${0.55 * masterOpacity})`;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Thumb (lm4) ↔ index-tip (lm8) pinch proximity arc + burst
+function _renderPinch(ctx, landmarks, scale, masterOpacity, hi, time) {
+  const w = skeletonCanvas.width, h = skeletonCanvas.height;
+  const tx = (1 - landmarks[4].x) * w, ty = landmarks[4].y * h;
+  const ix = (1 - landmarks[8].x) * w, iy = landmarks[8].y * h;
+  const dist = Math.hypot(tx - ix, ty - iy);
+  const ratio = dist / scale;
+
+  // Decay existing flash
+  _pinchFlash[hi] *= 0.88;
+
+  if (ratio < 0.30) {
+    const strength = Math.max(0, 1 - ratio / 0.30);
+
+    // Trigger new flash burst on close pinch
+    if (ratio < 0.10 && _pinchFlash[hi] < 0.3) _pinchFlash[hi] = 1.0;
+
+    // Energy arc between thumb tip and index tip
+    const mx = (tx + ix) * 0.5 + (iy - ty) * 0.15;
+    const my = (ty + iy) * 0.5 + (tx - ix) * 0.15;
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,200,40,0.95)';
+    ctx.shadowBlur  = 14;
+    ctx.strokeStyle = `rgba(255,215,80,${strength * 0.85 * masterOpacity})`;
+    ctx.lineWidth   = 1.4 + strength * 1.8;
+    ctx.lineCap     = 'round';
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.quadraticCurveTo(mx, my, ix, iy);
+    ctx.stroke();
+    ctx.restore();
+
+    // Burst particles radiating from midpoint on pinch contact
+    if (_pinchFlash[hi] > 0.05) {
+      const bmx = (tx + ix) * 0.5, bmy = (ty + iy) * 0.5;
+      const pf  = _pinchFlash[hi];
+      ctx.save();
+      for (let k = 0; k < 16; k++) {
+        const ang = (k / 16) * Math.PI * 2 + time * 0.003;
+        const rad = scale * 0.15 * pf;
+        const px  = bmx + Math.cos(ang) * rad;
+        const py  = bmy + Math.sin(ang) * rad;
+        const a   = pf * 0.75 * masterOpacity;
+        ctx.fillStyle = k % 3 === 0
+          ? `rgba(255,255,200,${a})`
+          : `rgba(255,185,40,${a})`;
+        ctx.beginPath();
+        ctx.arc(px, py, 1.5 + pf * 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
   }
 }
 
@@ -207,8 +315,8 @@ function _renderTrail(ctx, hi, masterOpacity, time) {
     (newest[9].y - newest[0].y) * h
   ) || 80;
 
-  // Membrane / vlies — soft skin layer under the particles
-  _renderMembrane(ctx, newest, scale, masterOpacity);
+  // Solid skin pass — dark body + neon cyan outline (cohesion layer under particles)
+  _renderSkin(ctx, newest, scale, masterOpacity);
 
   // Velocity: compare newest frame to frame behind it
   let velFactor = 0;
@@ -235,10 +343,12 @@ function _renderTrail(ctx, hi, masterOpacity, time) {
       const px = cx + Math.cos(off.ang) * baseR * off.rfrac;
       const py = cy + Math.sin(off.ang) * baseR * off.rfrac;
       ctx.fillStyle = warm
-        ? `rgba(255,248,230,${a})`    // warm white at fingertips (newest)
-        : frameAlpha > 0.6
-          ? `rgba(248,252,255,${a})`  // near-pure white (recent frames)
-          : `rgba(200,225,255,${a})`; // cool blue-white (older trail frames)
+        ? `rgba(255,200,60,${a})`      // gold at fingertips
+        : frameAlpha > 0.65
+          ? `rgba(180,240,255,${a})`   // cyan-white (newest frames)
+          : frameAlpha > 0.35
+            ? `rgba(0,190,220,${a})`   // teal (mid trail)
+            : `rgba(80,30,170,${a})`;  // deep purple (oldest trail)
       ctx.beginPath();
       ctx.arc(px, py, off.sz, 0, Math.PI * 2);
       ctx.fill();
@@ -249,7 +359,7 @@ function _renderTrail(ctx, hi, masterOpacity, time) {
   for (let fi = N - 1; fi >= 0; fi--) {
     const lms    = frames[fi];
     const trailT = 1 - fi / Math.max(N - 1, 1);
-    const frameAlpha = trailT * trailT * masterOpacity;
+    const frameAlpha = trailT * masterOpacity * 0.82;
 
     // --- Joint landmark clouds (21 points) ---
     for (let li = 0; li < 21; li++) {
@@ -277,21 +387,25 @@ function _renderTrail(ctx, hi, masterOpacity, time) {
     }
   }
 
-  // Soft fingertip halo on the current (newest) frame only
+  // Soft gold fingertip halo on the current (newest) frame only
   for (const li of FINGERTIPS) {
     const lm = newest[li];
-    const cx = (1 - lm.x) * w;   // mirror-corrected
+    const cx = (1 - lm.x) * w;
     const cy = lm.y * h;
-    const r  = _LM_R[li] * scale * 2.2;
+    const r  = _LM_R[li] * scale * 2.4;
     const g  = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    g.addColorStop(0,   `rgba(210,240,255,${0.22 * masterOpacity})`);
-    g.addColorStop(0.5, `rgba(160,210,255,${0.07 * masterOpacity})`);
-    g.addColorStop(1,   'rgba(120,180,255,0)');
+    g.addColorStop(0,   `rgba(255,210,80,${0.22 * masterOpacity})`);
+    g.addColorStop(0.5, `rgba(255,160,30,${0.07 * masterOpacity})`);
+    g.addColorStop(1,   'rgba(200,80,0,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  // Arcane joint dots + pinch arc on top of everything
+  _renderJoints(ctx, newest, scale, masterOpacity);
+  _renderPinch(ctx, newest, scale, masterOpacity, hi, time);
 }
 
 export function drawSkeleton(handsResults, handInfos, time = 0) {
