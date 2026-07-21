@@ -209,69 +209,24 @@ function _renderMembrane(ctx, landmarks, scale, masterOpacity) {
   ctx.restore();
 }
 
-// Dark skin base with Arcane neon edge glow.
-// Pass 0: filled palm polygon anchors the hand mass.
-// Passes 1-3: per-bone neon halo → dark fill → purple tint.
+// Thin hairline neon outline — the membrane already provides the dark mass,
+// this only adds a delicate glowing edge. One single thin pass, no fills.
 function _renderSkin(ctx, landmarks, scale, masterOpacity) {
   const w = skeletonCanvas.width, h = skeletonCanvas.height;
   ctx.save();
-  ctx.lineCap  = 'round';
-  ctx.lineJoin = 'round';
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+  ctx.shadowColor = 'rgba(0,195,245,0.50)';
+  ctx.shadowBlur  = 24;
+  ctx.strokeStyle = `rgba(0,175,230,${0.28 * masterOpacity})`;
+  ctx.lineWidth   = Math.max(1, scale * 0.016);  // ~1-2px hairline
 
-  // Pass 0 — palm silhouette (wrist → thumb CMC → index MCP → … → pinky MCP)
-  ctx.shadowBlur = 0;
-  const palmRing = [0, 1, 5, 9, 13, 17];
-  ctx.beginPath();
-  ctx.moveTo((1 - landmarks[palmRing[0]].x) * w, landmarks[palmRing[0]].y * h);
-  for (let i = 1; i < palmRing.length; i++) {
-    ctx.lineTo((1 - landmarks[palmRing[i]].x) * w, landmarks[palmRing[i]].y * h);
-  }
-  ctx.closePath();
-  ctx.fillStyle = `rgba(5,2,22,${0.88 * masterOpacity})`;
-  ctx.fill();
-  // Neon contour on the palm polygon — soft glow, no hard edge
-  ctx.shadowColor = 'rgba(0,195,245,0.40)';
-  ctx.shadowBlur  = 28;
-  ctx.strokeStyle = `rgba(0,165,220,${0.10 * masterOpacity})`;
-  ctx.lineWidth   = scale * 0.05;
-  ctx.stroke();
-
-  // Pass 1 — neon cyan halo per bone (fuzzy, low opacity, wide blur)
-  ctx.shadowColor = 'rgba(0,195,245,0.55)';
-  ctx.shadowBlur  = 36;
-  for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
-    const [a, b] = HAND_CONNECTIONS[bi];
-    ctx.lineWidth   = BONE_WIDTHS[bi] * scale;
-    ctx.strokeStyle = `rgba(0,175,230,${0.14 * masterOpacity})`;
+  for (const [a, b] of HAND_CONNECTIONS) {
     ctx.beginPath();
     ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
     ctx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
     ctx.stroke();
   }
-
-  // Pass 2 — dark Arcane interior (covers halo centre, leaves glowing rim)
-  ctx.shadowBlur  = 0;
-  for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
-    const [a, b] = HAND_CONNECTIONS[bi];
-    ctx.lineWidth   = BONE_WIDTHS[bi] * scale * 0.68;
-    ctx.strokeStyle = `rgba(5,2,22,${0.94 * masterOpacity})`;
-    ctx.beginPath();
-    ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
-    ctx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
-    ctx.stroke();
-  }
-
-  // Pass 3 — inner Arcane purple tint
-  for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
-    const [a, b] = HAND_CONNECTIONS[bi];
-    ctx.lineWidth   = BONE_WIDTHS[bi] * scale * 0.36;
-    ctx.strokeStyle = `rgba(40,10,90,${0.28 * masterOpacity})`;
-    ctx.beginPath();
-    ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
-    ctx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
-    ctx.stroke();
-  }
-
   ctx.restore();
 }
 
@@ -419,7 +374,7 @@ function _renderTrail(ctx, hi, masterOpacity, time) {
   for (let fi = N - 1; fi >= 0; fi--) {
     const lms    = frames[fi];
     const trailT = 1 - fi / Math.max(N - 1, 1);
-    const frameAlpha = trailT * masterOpacity * 0.82;
+    const frameAlpha = trailT * masterOpacity * 0.55;
 
     // --- Joint landmark clouds (21 points) ---
     for (let li = 0; li < 21; li++) {
