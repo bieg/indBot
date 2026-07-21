@@ -146,22 +146,31 @@ const _PALM_PARTS = PALM_TRIS.map((tri, ti) => {
   });
 });
 
-// Vinger-tubes: breed scatter proportioneel aan segmentlengte
+// Vinger-tubes: driehoeksverdeling voor ronde doorsnede
+// bi < 18 = vingerbotten, bi >= 18 = palmverbindingen
 const _BONE_PARTS = HAND_CONNECTIONS.map(([a, b], bi) => {
-  const N = 55;
+  const isFinger = bi < 18;
+  const N      = isFinger ? 90 : 45;
+  const SPREAD = isFinger ? 0.34 : 0.12;
   return Array.from({ length: N }, (_, p) => {
-    const t    = ((bi * 37 + p * 13 + 3) % 97) / 97;
-    // perp = fractie van segmentlengte → schaalt mee met afstand camera
-    const perp = (((bi * 31 + p * 19 + 11) % 97) / 97 * 2 - 1) * 0.20;
+    const t  = ((bi * 37 + p * 13 + 3) % 97) / 97;
+    // Driehoeksverdeling: r1+r2-1 → peaked op 0, meer particles in midden
+    const r1 = ((bi * 31 + p * 19 + 11) % 97) / 97;
+    const r2 = ((bi * 53 + p * 29 + 7)  % 97) / 97;
+    const perp     = (r1 + r2 - 1) * SPREAD;
+    const absFrac  = Math.abs(r1 + r2 - 1); // 0=midden, 1=rand
+    const roundF   = 1 - absFrac * 0.72;    // hoog in midden, laag op rand
     const tier = (bi * 7 + p * 17) % 10;
+    const baseSz = tier >= 9 ? 1.4 + ((bi * 3 + p) % 6) / 3
+                 : tier >= 7 ? 0.7 + ((bi * 5 + p) % 7) / 8
+                 :             0.3 + ((bi * 7 + p * 11) % 7) / 14;
+    const baseAl = tier >= 9 ? 0.70 + ((bi + p * 3) % 20) / 100
+                 : tier >= 7 ? 0.35 + ((bi * 3 + p) % 28) / 100
+                 :             0.08 + ((bi * 3 + p * 7) % 26) / 100;
     return {
       t, perp,
-      sz: tier >= 9 ? 1.4 + ((bi * 3 + p) % 6) / 3
-        : tier >= 7 ? 0.7 + ((bi * 5 + p) % 7) / 8
-        :             0.3 + ((bi * 7 + p * 11) % 7) / 14,
-      al: tier >= 9 ? 0.70 + ((bi + p * 3) % 20) / 100
-        : tier >= 7 ? 0.35 + ((bi * 3 + p) % 28) / 100
-        :             0.08 + ((bi * 3 + p * 7) % 26) / 100,
+      sz: baseSz * (0.75 + roundF * 0.45),
+      al: baseAl * roundF,
       gold: (bi * 13 + p * 23) % 6 === 0,
     };
   });
