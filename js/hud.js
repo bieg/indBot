@@ -169,17 +169,38 @@ const BONE_WIDTHS = [
 // Pinch flash state per hand (decays each frame)
 const _pinchFlash = [0, 0];
 
-// Solid hand silhouette — one fat-stroke pass per bone, round caps merge at joints.
-// Drawn first so everything else renders on top.
+// Solid hand silhouette — variable-width strokes so palm and knuckle row
+// fill in as a continuous mass while finger shafts stay distinct.
+//
+// HAND_CONNECTIONS layout (by index bi):
+//   0-3   thumb shaft
+//   4-7   index shaft  (bi 4 = wrist→index MCP)
+//   8-11  middle shaft (bi 8 = wrist→middle MCP)
+//  12-15  ring shaft   (bi 12 = wrist→ring MCP)
+//  16-19  pinky shaft  (bi 16 = wrist→pinky MCP)
+//  20-22  knuckle row [5,9],[9,13],[13,17]
+//
+// Three width zones:
+//   Knuckle row (20-22): 0.65× scale — bridges gaps between finger bases
+//   Palm roots  (0,4,8,12,16): 0.56× — fills lower palm between wrist and MCPs
+//   Finger shafts (rest): 0.42× — tubular, fingers stay legible
+const _MEM_KNUCKLE = new Set([20, 21, 22]);
+const _MEM_PALMROOT = new Set([0, 4, 8, 12, 16]);
+
 function _renderMembrane(ctx, landmarks, scale, masterOpacity) {
   const w = skeletonCanvas.width, h = skeletonCanvas.height;
   ctx.save();
-  ctx.lineCap  = 'round';
-  ctx.lineJoin = 'round';
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
   ctx.shadowBlur  = 0;
-  ctx.strokeStyle = `rgba(8,3,30,${0.58 * masterOpacity})`;
-  ctx.lineWidth   = scale * 0.42;   // fat enough so adjacent bones overlap into a solid mass
-  for (const [a, b] of HAND_CONNECTIONS) {
+  ctx.strokeStyle = `rgba(8,3,30,${0.62 * masterOpacity})`;
+
+  for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
+    const [a, b] = HAND_CONNECTIONS[bi];
+    ctx.lineWidth = scale * (
+      _MEM_KNUCKLE.has(bi)  ? 0.65 :
+      _MEM_PALMROOT.has(bi) ? 0.56 : 0.42
+    );
     ctx.beginPath();
     ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
     ctx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
