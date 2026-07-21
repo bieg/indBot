@@ -1,0 +1,30 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [claude/new-game-plan-mlb4kx]
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject build timestamp
+        run: |
+          BUILD_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          sed -i "s|<meta name=\"build-time\" content=\"[^\"]*\"|<meta name=\"build-time\" content=\"$BUILD_TS\"|g" index.html
+          echo "Build timestamp: $BUILD_TS"
+
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: .
+          clean: true
+          clean-exclude: |
+            LICENSE
+            serve.sh
