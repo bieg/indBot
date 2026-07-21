@@ -144,13 +144,14 @@ const _BONE_SCATTER = Array.from({ length: 23 * 2 }, (_, bi) =>
 );
 
 // Cloud radius per landmark (fraction of hand scale = wrist–MCP9 distance)
+// Back to original loose values — the membrane now provides form, so cloud can breathe.
 const _LM_R = [
-  0.10,                             // 0  wrist
-  0.055, 0.055, 0.048, 0.082,       // 1-4  thumb
-  0.063, 0.055, 0.048, 0.082,       // 5-8  index
-  0.063, 0.055, 0.048, 0.082,       // 9-12 middle
-  0.063, 0.055, 0.048, 0.082,       // 13-16 ring
-  0.055, 0.048, 0.038, 0.072,       // 17-20 pinky
+  0.13,                           // 0  wrist
+  0.07, 0.07, 0.06, 0.10,         // 1-4  thumb
+  0.08, 0.07, 0.06, 0.10,         // 5-8  index
+  0.08, 0.07, 0.06, 0.10,         // 9-12 middle
+  0.08, 0.07, 0.06, 0.10,         // 13-16 ring
+  0.07, 0.06, 0.05, 0.09,         // 17-20 pinky
 ];
 
 const FINGERTIPS = [4, 8, 12, 16, 20];
@@ -176,8 +177,8 @@ function _renderMembrane(ctx, landmarks, scale, masterOpacity) {
   ctx.lineCap  = 'round';
   ctx.lineJoin = 'round';
   ctx.shadowBlur  = 0;
-  ctx.strokeStyle = `rgba(8,3,30,${0.70 * masterOpacity})`;
-  ctx.lineWidth   = scale * 0.40;   // fat enough so adjacent bones overlap into a solid mass
+  ctx.strokeStyle = `rgba(8,3,30,${0.58 * masterOpacity})`;
+  ctx.lineWidth   = scale * 0.42;   // fat enough so adjacent bones overlap into a solid mass
   for (const [a, b] of HAND_CONNECTIONS) {
     ctx.beginPath();
     ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
@@ -370,7 +371,7 @@ function _renderTrail(ctx, hi, masterOpacity, time) {
     velFactor = Math.min(sumD / keyLms.length / 12, 1); // 12px/frame = max
   }
 
-  const velSpread = 1 + velFactor * 1.0;   // 1× still → 2.0× fast (capped for form stability)
+  const velSpread = 1 + velFactor * 1.8;   // 1× still → 2.8× fast
   const N = frames.length;
 
   // Helper: emit a particle cloud at (cx, cy) using pre-baked offsets
