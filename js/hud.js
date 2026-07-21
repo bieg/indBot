@@ -5,6 +5,16 @@ const THREAD_COLORS = {
   ghost: 'rgba(255,255,255,0.4)',
 };
 
+// 20 finger-bone segments + 3 knuckle-row connectors
+const HAND_CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [0,9],[9,10],[10,11],[11,12],
+  [0,13],[13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],
+  [5,9],[9,13],[13,17],
+];
+
 const ORIENTATION_MS = 1000;
 const FADE_DURATION  = 400;
 const OPACITY_HOLD   = 1.0;
@@ -111,14 +121,25 @@ const _trail = [
 const _trailHead = [0, 0];       // ring buffer write pointer
 const _prevLms   = [null, null]; // previous frame landmarks for velocity
 
-// Pre-baked deterministic scatter offsets per landmark
-// (angle, normalized radius fraction, base size, base alpha)
+// Pre-baked deterministic scatter offsets per landmark (30 particles)
 const _SCATTER = Array.from({ length: 21 }, (_, li) =>
   Array.from({ length: SCATTER_N }, (_, k) => ({
     ang:   ((li * 41 + k * 17) % 317) / 317 * Math.PI * 2,
-    rfrac: 0.18 + ((li * 23 + k * 37 + 7) % 82) / 100,  // 0.18 – 1.00
-    sz:    0.45 + ((li * 7  + k * 13 + 3) % 10) / 7,     // 0.45 – 1.88
-    al:    0.40 + ((li * 13 + k * 7)      % 42) / 100,   // 0.40 – 0.82
+    rfrac: 0.18 + ((li * 23 + k * 37 + 7) % 82) / 100,
+    sz:    0.45 + ((li * 7  + k * 13 + 3) % 10) / 7,
+    al:    0.40 + ((li * 13 + k * 7)      % 42) / 100,
+  }))
+);
+
+// Pre-baked scatter for bone midpoints — 23 bones × 2 t-values = 46 sample positions
+// Fewer particles per point (12), slightly smaller spread, fills the gaps between joints.
+const BONE_SCATTER_N = 12;
+const _BONE_SCATTER = Array.from({ length: 23 * 2 }, (_, bi) =>
+  Array.from({ length: BONE_SCATTER_N }, (_, k) => ({
+    ang:   ((bi * 53 + k * 23 + 11) % 317) / 317 * Math.PI * 2,
+    rfrac: 0.15 + ((bi * 31 + k * 41 + 7) % 75) / 100,  // 0.15 – 0.90
+    sz:    0.38 + ((bi * 11 + k * 17 + 3) % 9)  / 8,     // 0.38 – 1.50
+    al:    0.32 + ((bi * 17 + k * 11)      % 38) / 100,   // 0.32 – 0.70
   }))
 );
 
@@ -206,47 +227,52 @@ function _renderTrail(ctx, hi, masterOpacity, time) {
   const velSpread = 1 + velFactor * 2.2;   // 1× still → 3.2× fast
   const N = frames.length;
 
+  // Helper: emit a particle cloud at (cx, cy) using pre-baked offsets
+  function _emitCloud(cx, cy, baseR, offsets, frameAlpha, shimmer, warm) {
+    for (const off of offsets) {
+      const a = Math.min(1, off.al * frameAlpha * shimmer);
+      if (a < 0.012) continue;
+      const px = cx + Math.cos(off.ang) * baseR * off.rfrac;
+      const py = cy + Math.sin(off.ang) * baseR * off.rfrac;
+      ctx.fillStyle = warm
+        ? `rgba(255,248,230,${a})`    // warm white at fingertips (newest)
+        : frameAlpha > 0.6
+          ? `rgba(248,252,255,${a})`  // near-pure white (recent frames)
+          : `rgba(200,225,255,${a})`; // cool blue-white (older trail frames)
+      ctx.beginPath();
+      ctx.arc(px, py, off.sz, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   // Render oldest → newest so newest sits on top
   for (let fi = N - 1; fi >= 0; fi--) {
-    const lms = frames[fi];
-    // trailT: 0 = oldest, 1 = newest
+    const lms    = frames[fi];
     const trailT = 1 - fi / Math.max(N - 1, 1);
-    // Quadratic fade: old frames very faint, newest frame full
     const frameAlpha = trailT * trailT * masterOpacity;
 
+    // --- Joint landmark clouds (21 points) ---
     for (let li = 0; li < 21; li++) {
-      const lm  = lms[li];
-      const cx  = (1 - lm.x) * w;   // mirror-corrected: matches CSS scaleX(-1) on webcam
-      const cy  = lm.y * h;
+      const lm    = lms[li];
+      const cx    = (1 - lm.x) * w;
+      const cy    = lm.y * h;
       const baseR = _LM_R[li] * scale * velSpread;
       const shimmer = 1 + Math.sin(time * 0.0022 + li * 0.47 + fi * 0.31) * 0.14;
+      const warm  = FINGERTIPS.includes(li) && trailT > 0.55;
+      _emitCloud(cx, cy, baseR, _SCATTER[li], frameAlpha, shimmer, warm);
+    }
 
-      for (const off of _SCATTER[li]) {
-        const r  = baseR * off.rfrac;
-        const px = cx + Math.cos(off.ang) * r;
-        const py = cy + Math.sin(off.ang) * r;
-        const a  = Math.min(1, off.al * frameAlpha * shimmer);
-        if (a < 0.01) continue;
-
-        // Color temperature: slightly warm at fingertips on recent frames,
-        // cool blue-white elsewhere — all very close to white.
-        const isTip = FINGERTIPS.includes(li);
-        let color;
-        if (isTip && trailT > 0.6) {
-          // bright warm white at fingertip newest frames
-          color = `rgba(255,248,230,${a})`;
-        } else if (trailT > 0.75) {
-          // brightest newest particles: pure white
-          color = `rgba(255,255,255,${a})`;
-        } else {
-          // trail fades to cool pale blue-white
-          color = `rgba(200,225,255,${a})`;
-        }
-
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(px, py, off.sz, 0, Math.PI * 2);
-        ctx.fill();
+    // --- Bone segment fill — 2 interpolated points per bone ---
+    let bsi = 0;
+    for (const [a, b] of HAND_CONNECTIONS) {
+      for (const t of [0.33, 0.67]) {
+        const lmA = lms[a], lmB = lms[b];
+        const cx    = ((1 - lmA.x) * (1 - t) + (1 - lmB.x) * t) * w;
+        const cy    = (lmA.y * (1 - t) + lmB.y * t) * h;
+        const baseR = (_LM_R[a] * (1 - t) + _LM_R[b] * t) * scale * velSpread * 0.88;
+        const shimmer = 1 + Math.sin(time * 0.0022 + bsi * 0.53 + fi * 0.28) * 0.11;
+        _emitCloud(cx, cy, baseR, _BONE_SCATTER[bsi], frameAlpha, shimmer, false);
+        bsi++;
       }
     }
   }
