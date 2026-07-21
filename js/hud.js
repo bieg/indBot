@@ -208,20 +208,20 @@ function _renderSkin(ctx, landmarks, scale, masterOpacity) {
   ctx.closePath();
   ctx.fillStyle = `rgba(5,2,22,${0.88 * masterOpacity})`;
   ctx.fill();
-  // Neon contour on the palm polygon too
-  ctx.shadowColor = 'rgba(0,195,245,0.55)';
-  ctx.shadowBlur  = 16;
-  ctx.strokeStyle = `rgba(0,165,220,${0.28 * masterOpacity})`;
+  // Neon contour on the palm polygon — soft glow, no hard edge
+  ctx.shadowColor = 'rgba(0,195,245,0.40)';
+  ctx.shadowBlur  = 28;
+  ctx.strokeStyle = `rgba(0,165,220,${0.10 * masterOpacity})`;
   ctx.lineWidth   = scale * 0.05;
   ctx.stroke();
 
-  // Pass 1 — neon cyan halo per bone
-  ctx.shadowColor = 'rgba(0,195,245,0.80)';
-  ctx.shadowBlur  = 20;
+  // Pass 1 — neon cyan halo per bone (fuzzy, low opacity, wide blur)
+  ctx.shadowColor = 'rgba(0,195,245,0.55)';
+  ctx.shadowBlur  = 36;
   for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
     const [a, b] = HAND_CONNECTIONS[bi];
     ctx.lineWidth   = BONE_WIDTHS[bi] * scale;
-    ctx.strokeStyle = `rgba(0,175,230,${0.42 * masterOpacity})`;
+    ctx.strokeStyle = `rgba(0,175,230,${0.14 * masterOpacity})`;
     ctx.beginPath();
     ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
     ctx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
@@ -265,11 +265,11 @@ function _renderJoints(ctx, landmarks, scale, masterOpacity) {
     const tip = FINGERTIPS.includes(li);
     const r   = (tip ? 0.055 : 0.032) * scale;
 
-    ctx.shadowColor = tip ? 'rgba(255,200,60,0.9)' : 'rgba(0,200,255,0.8)';
-    ctx.shadowBlur  = tip ? 10 : 6;
+    ctx.shadowColor = tip ? 'rgba(255,200,60,0.6)' : 'rgba(0,200,255,0.5)';
+    ctx.shadowBlur  = tip ? 18 : 14;
     ctx.fillStyle   = tip
-      ? `rgba(255,215,80,${0.80 * masterOpacity})`
-      : `rgba(0,210,255,${0.55 * masterOpacity})`;
+      ? `rgba(255,215,80,${0.55 * masterOpacity})`
+      : `rgba(0,210,255,${0.30 * masterOpacity})`;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
