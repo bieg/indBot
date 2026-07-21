@@ -79,7 +79,8 @@ export function updateThreads(time) {
       }
       if (t.mesh.material) {
         t.mesh.material.transparent = true;
-        t.mesh.material.opacity = Math.max(0, 1 - fadeProgress) * (t.type === 'ghost' ? 0.08 : 0.7);
+        const maxOp = t.type === 'ghost' ? 0.08 : t.type === 'energy' ? 0.7 : 1.0;
+        t.mesh.material.opacity = Math.max(0, 1 - fadeProgress) * maxOp;
       }
       continue;
     }

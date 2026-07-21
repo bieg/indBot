@@ -42,7 +42,7 @@ export function initScene() {
 function _buildBloomComposer() {
   const w = window.innerWidth, h = window.innerHeight;
 
-  const bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.5, 0.4, 0.25);
+  const bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.85, 0.5, 0.20);
 
   bloomComposer = new EffectComposer(renderer);
   bloomComposer.renderToScreen = false;
