@@ -131,19 +131,19 @@ const PALM_TRIS = [
   [9, 13, 17],
 ];
 
-// Sparkle particles: small texture dots scattered around each bone (not the base shape)
+// Sparkles: dense tiny dots dicht op het bot — magisch glinsterende vlees
 const _SPARKLES = HAND_CONNECTIONS.map(([a, b], bi) => {
-  const N = 45;
+  const N = 70;
   return Array.from({ length: N }, (_, p) => {
     const t   = ((bi * 37 + p * 13 + 3) % 97) / 97;
     const ang = ((bi * 41 + p * 71 + 13) % 317) / 317 * Math.PI * 2;
-    const r   = ((bi * 31 + p * 19 + 11) % 97) / 97 * 12; // max 12px scatter
+    const r   = ((bi * 31 + p * 19 + 11) % 97) / 97 * 8; // max 8px — tight cluster
     return {
       t,
       dx: Math.cos(ang) * r,
       dy: Math.sin(ang) * r,
-      sz: 0.3 + ((bi * 7 + p * 11) % 16) / 16,  // 0.3–1.3px
-      al: 0.35 + ((bi * 3 + p * 7) % 40) / 100,
+      sz: 0.3 + ((bi * 7 + p * 11) % 10) / 10,  // 0.3–1.3px mini dots
+      al: 0.20 + ((bi * 3 + p * 7) % 45) / 100, // 0.20–0.65 subtiel transparant
     };
   });
 });
@@ -166,9 +166,9 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
   bc.lineCap  = 'round';
   bc.lineJoin = 'round';
 
-  // Palm fill — warm area
+  // Palm — lichte transparante gloed
   for (const [ia, ib, ic] of PALM_TRIS) {
-    bc.fillStyle = `rgba(255,235,190,${0.18 * opacity})`;
+    bc.fillStyle = `rgba(255,225,160,${0.14 * opacity})`;
     bc.beginPath();
     bc.moveTo(X(landmarks[ia]), Y(landmarks[ia]));
     bc.lineTo(X(landmarks[ib]), Y(landmarks[ib]));
@@ -177,37 +177,38 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     bc.fill();
   }
 
-  // Outer halo — soft glow around each bone
+  // Zachte buitenste gloed (breed maar doorzichtig)
+  bc.lineCap = 'round'; bc.lineJoin = 'round';
   for (const [a, b] of HAND_CONNECTIONS) {
-    bc.strokeStyle = `rgba(255,228,160,${0.20 * opacity})`;
-    bc.lineWidth = 10;
+    bc.strokeStyle = `rgba(255,210,130,${0.55 * opacity})`;
+    bc.lineWidth = 5;
     bc.beginPath();
     bc.moveTo(X(landmarks[a]), Y(landmarks[a]));
     bc.lineTo(X(landmarks[b]), Y(landmarks[b]));
     bc.stroke();
   }
 
-  // Bright core
+  // Heldere kern — dun, helder
   for (const [a, b] of HAND_CONNECTIONS) {
-    bc.strokeStyle = `rgba(255,252,228,${0.70 * opacity})`;
-    bc.lineWidth = 3;
+    bc.strokeStyle = `rgba(255,252,230,${0.90 * opacity})`;
+    bc.lineWidth = 1.5;
     bc.beginPath();
     bc.moveTo(X(landmarks[a]), Y(landmarks[a]));
     bc.lineTo(X(landmarks[b]), Y(landmarks[b]));
     bc.stroke();
   }
 
-  // Joint dots
+  // Gewrichtsknopen
   for (let li = 0; li < 21; li++) {
-    bc.fillStyle = `rgba(255,255,240,${0.85 * opacity})`;
+    bc.fillStyle = `rgba(255,255,245,${opacity})`;
     bc.beginPath();
-    bc.arc(X(landmarks[li]), Y(landmarks[li]), FINGERTIPS.includes(li) ? 4 : 2.5, 0, Math.PI * 2);
+    bc.arc(X(landmarks[li]), Y(landmarks[li]), FINGERTIPS.includes(li) ? 3 : 2, 0, Math.PI * 2);
     bc.fill();
   }
 
-  // Blur pass — 6px geeft zachte randen zonder overdreven dikte
+  // Kleine blur → zachte randen, geen dikke worst (3px = ~20px breed totaal)
   ctx.save();
-  ctx.filter = 'blur(6px)';
+  ctx.filter = 'blur(3px)';
   ctx.drawImage(_blurCanvas, 0, 0);
   ctx.filter = 'none';
   ctx.restore();
