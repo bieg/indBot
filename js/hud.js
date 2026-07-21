@@ -168,7 +168,7 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
 
   // Palm fill — warm area
   for (const [ia, ib, ic] of PALM_TRIS) {
-    bc.fillStyle = `rgba(255,235,190,${0.28 * opacity})`;
+    bc.fillStyle = `rgba(255,235,190,${0.18 * opacity})`;
     bc.beginPath();
     bc.moveTo(X(landmarks[ia]), Y(landmarks[ia]));
     bc.lineTo(X(landmarks[ib]), Y(landmarks[ib]));
@@ -177,19 +177,9 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     bc.fill();
   }
 
-  // Outer halo — wide soft glow per bone
+  // Outer halo — soft glow around each bone
   for (const [a, b] of HAND_CONNECTIONS) {
-    bc.strokeStyle = `rgba(255,228,160,${0.22 * opacity})`;
-    bc.lineWidth = 38;
-    bc.beginPath();
-    bc.moveTo(X(landmarks[a]), Y(landmarks[a]));
-    bc.lineTo(X(landmarks[b]), Y(landmarks[b]));
-    bc.stroke();
-  }
-
-  // Bright core — narrower, higher alpha
-  for (const [a, b] of HAND_CONNECTIONS) {
-    bc.strokeStyle = `rgba(255,252,228,${0.65 * opacity})`;
+    bc.strokeStyle = `rgba(255,228,160,${0.20 * opacity})`;
     bc.lineWidth = 10;
     bc.beginPath();
     bc.moveTo(X(landmarks[a]), Y(landmarks[a]));
@@ -197,17 +187,27 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1) {
     bc.stroke();
   }
 
-  // Joint dots — brighter knots at each landmark
-  for (let li = 0; li < 21; li++) {
-    bc.fillStyle = `rgba(255,255,240,${0.9 * opacity})`;
+  // Bright core
+  for (const [a, b] of HAND_CONNECTIONS) {
+    bc.strokeStyle = `rgba(255,252,228,${0.70 * opacity})`;
+    bc.lineWidth = 3;
     bc.beginPath();
-    bc.arc(X(landmarks[li]), Y(landmarks[li]), FINGERTIPS.includes(li) ? 7 : 4, 0, Math.PI * 2);
+    bc.moveTo(X(landmarks[a]), Y(landmarks[a]));
+    bc.lineTo(X(landmarks[b]), Y(landmarks[b]));
+    bc.stroke();
+  }
+
+  // Joint dots
+  for (let li = 0; li < 21; li++) {
+    bc.fillStyle = `rgba(255,255,240,${0.85 * opacity})`;
+    bc.beginPath();
+    bc.arc(X(landmarks[li]), Y(landmarks[li]), FINGERTIPS.includes(li) ? 4 : 2.5, 0, Math.PI * 2);
     bc.fill();
   }
 
-  // Single blur pass → everything becomes soft + organic, no visible pixels
+  // Blur pass — 6px geeft zachte randen zonder overdreven dikte
   ctx.save();
-  ctx.filter = 'blur(13px)';
+  ctx.filter = 'blur(6px)';
   ctx.drawImage(_blurCanvas, 0, 0);
   ctx.filter = 'none';
   ctx.restore();
