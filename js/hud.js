@@ -162,20 +162,19 @@ const _BONE_SPREAD = [
 ];
 
 const _BONE_N = [
-  100, 88, 72, 55,
-  112, 95, 80, 60,
-  120, 102, 84, 64,
-  112, 95, 80, 60,
-  92, 76, 62, 46,
-  32, 32, 32,
+  180, 155, 128, 95,
+  200, 170, 140, 105,
+  210, 178, 148, 112,
+  200, 170, 140, 105,
+  165, 138, 110, 82,
+  55, 55, 55,
 ];
 
-// Bimodale puntgrootte: of heel klein (halftone) of groot (pop-art accent)
+// Doorlopende kleine puntjes — geen grote blobs, wel sparkles op top-tier
 function _sz(ti_bi, p, tier) {
-  const big = tier >= 8;
-  return big
-    ? 2.4 + ((ti_bi * 3 + p) % 5) / 2.5   // 2.4–4.4px accent
-    : 0.35 + ((ti_bi * 7 + p * 11) % 6) / 14; // 0.35–0.78px micro-dot
+  return tier >= 9 ? 1.4 + ((ti_bi * 3 + p) % 5) / 4   // 1.4–2.6px max sparkle
+       : tier >= 7 ? 0.7 + ((ti_bi * 5 + p) % 6) / 8    // 0.7–1.45px medium
+       :             0.3 + ((ti_bi * 7 + p * 11) % 6) / 14; // 0.3–0.73px micro
 }
 function _al(tier, tier9b, tier7b, baseB) {
   return tier >= 9 ? tier9b : tier >= 7 ? tier7b : baseB;
@@ -305,16 +304,17 @@ function _fillHex(ctx, cx, cy, r) {
 }
 
 function _drawHand(ctx, landmarks, w, h, opacity = 1, time = 0) {
-  const X  = lm => (1 - lm.x) * w;
+  const X  = lm => lm.x * w;   // geen extra flip — webcam CSS doet scaleX(-1)
   const Y  = lm => lm.y * h;
   const LZ = lm => (lm.z || 0);
-  const DEPTH = 7;
+  const DEPTH = 6; // alleen alpha, grootte nauwelijks
 
   function _put(px, py, pz, p) {
-    const df  = Math.max(0.4, 1 + (-pz) * DEPTH);
+    const df  = Math.max(0.5, 1 + (-pz) * DEPTH);
     const sh  = 1 + Math.sin(time * 0.004 + p.ph) * 0.10;
     const a   = Math.min(1, p.al * opacity * df * sh);
-    const sz  = p.sz * Math.max(0.5, df);
+    // grootte slechts licht beïnvloed door diepte — geen enorme blobs
+    const sz  = p.sz * Math.max(0.85, 1 + (-pz) * 1.2);
     ctx.fillStyle = _color(p, a);
     if      (p.star && sz > 1.6) _fillStar(ctx, px, py, sz);
     else if (p.hex  && sz > 1.2) _fillHex(ctx, px, py, sz);
@@ -359,10 +359,10 @@ function _drawHand(ctx, landmarks, w, h, opacity = 1, time = 0) {
   for (let li = 0; li < 21; li++) {
     const cx = X(landmarks[li]), cy = Y(landmarks[li]), cz = LZ(landmarks[li]);
     for (const p of _JOINT_PARTS[li]) {
-      const df  = Math.max(0.4, 1 + (-(cz + p.dz)) * DEPTH);
+      const df  = Math.max(0.5, 1 + (-(cz + p.dz)) * DEPTH);
       const sh  = 1 + Math.sin(time * 0.004 + p.ph) * 0.10;
       const a   = Math.min(1, p.al * opacity * df * sh);
-      const sz  = p.sz * Math.max(0.5, df);
+      const sz  = p.sz * Math.max(0.85, 1 + (-(cz + p.dz)) * 1.2);
       ctx.fillStyle = _color(p, a);
       if (p.star && sz > 1.6) _fillHex(ctx, cx + p.dx, cy + p.dy, sz);
       else { ctx.beginPath(); ctx.arc(cx + p.dx, cy + p.dy, sz, 0, Math.PI * 2); ctx.fill(); }
