@@ -260,20 +260,17 @@ function _renderJoints(ctx, landmarks, scale, masterOpacity, time = 0) {
       ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Outer glow dot
-      ctx.shadowColor = 'rgba(255,200,60,0.75)';
-      ctx.shadowBlur  = 20;
-      ctx.fillStyle   = `rgba(255,215,80,${0.60 * masterOpacity})`;
+      // Smooth radial gradient — white-gold center fading to transparent
+      const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 1.6);
+      gr.addColorStop(0,    `rgba(255,250,210,${(0.75 + pulse * 0.18) * masterOpacity})`);
+      gr.addColorStop(0.35, `rgba(255,215,80,${0.45 * masterOpacity})`);
+      gr.addColorStop(0.75, `rgba(255,160,20,${0.12 * masterOpacity})`);
+      gr.addColorStop(1,    'rgba(255,100,0,0)');
+      ctx.shadowColor = 'rgba(255,220,80,0.7)';
+      ctx.shadowBlur  = 18;
+      ctx.fillStyle   = gr;
       ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Bright white-gold core
-      ctx.shadowColor = 'rgba(255,255,200,1.0)';
-      ctx.shadowBlur  = 14;
-      ctx.fillStyle   = `rgba(255,248,200,${(0.80 + pulse * 0.15) * masterOpacity})`;
-      ctx.beginPath();
-      ctx.arc(cx, cy, r * 0.38, 0, Math.PI * 2);
+      ctx.arc(cx, cy, r * 1.6, 0, Math.PI * 2);
       ctx.fill();
     } else {
       ctx.shadowColor = 'rgba(0,200,255,0.5)';
