@@ -1,10 +1,11 @@
-import { initScene, render, getScene, mpToWorld } from './scene.js';
+import { initScene, render, getScene, mpToWorld, updateCamera } from './scene.js';
 import { initHands, detectHands, setOnGesture, getHandGrowingState, getHandInfo } from './hands.js';
 import * as hands from './hands.js';
 import { initStarfield, updateStarfield, crushImpulse, rotateImpulse } from './starfield.js';
 import { createThread, updateThreads, activeThreads, crushThreads } from './threads.js';
 // import { initSolly, updateSolly, energizeSolly, setOnSollyTouch } from './solly.js';
 import { initAudio, resumeAudio, playGestureSound } from './audio.js';
+import { initNebula, updateNebula, crushShards } from './nebula.js';
 import { initHud, setGestureHint, updateThreadCount, drawSkeleton } from './hud.js';
 
 const videoEl = document.getElementById('webcam');
@@ -16,6 +17,7 @@ const errorMsg = document.getElementById('error-msg');
 initScene();
 const scene = getScene();
 initStarfield(scene);
+initNebula(scene);
 initHud();
 requestAnimationFrame(_preLoop);
 
@@ -23,7 +25,7 @@ function _preLoop(time) {
   if (!_preLoop.running) return;
   requestAnimationFrame(_preLoop);
   updateStarfield(time, []);
-  // updateSolly(time, [], [], []);
+  updateNebula();
   render();
 }
 _preLoop.running = true;
@@ -66,7 +68,7 @@ function _handleGesture(evt) {
   if (evt.type === 'crush') {
     setGestureHint('crush', 'crush');
     crushThreads(evt.originPoint);
-    // energizeSolly(1.5);
+    crushShards(evt.originPoint);
   } else if (evt.type === 'rotate') {
     setGestureHint('rotate', 'rotate');
     rotateImpulse(evt.originPoint, evt.direction);
@@ -99,7 +101,12 @@ function _loop(time) {
     }
   }
 
+  // Camera follows first visible hand — creates 3D parallax feel
+  const lms0 = hands.latestResult?.landmarks?.[0];
+  if (lms0) updateCamera(lms0[0].x, lms0[0].y);
+
   updateStarfield(time, activeThreads, indexTips);
+  updateNebula();
   updateThreads(time);
   updateThreadCount(activeThreads.length);
 

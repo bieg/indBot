@@ -2,6 +2,7 @@ import * as THREE from 'three';
 
 const COUNT = 1500;
 const BOUNDS = 22;
+const BOUNDS_Z = 20;
 const MAX_SPEED = 0.04;
 const GRAVITY_STRENGTH = 0.0006;
 const GRAVITY_RADIUS = 3.0;
@@ -55,10 +56,10 @@ export function initStarfield(scene) {
     const i3 = i * 3;
     positions[i3]     = (Math.random() - 0.5) * BOUNDS;
     positions[i3 + 1] = (Math.random() - 0.5) * BOUNDS;
-    positions[i3 + 2] = (Math.random() - 0.5) * 8;
+    positions[i3 + 2] = (Math.random() - 0.5) * BOUNDS_Z;
     velocities[i3]     = (Math.random() - 0.5) * 0.002;
     velocities[i3 + 1] = (Math.random() - 0.5) * 0.002;
-    velocities[i3 + 2] = 0;
+    velocities[i3 + 2] = (Math.random() - 0.5) * 0.0012;
     phases[i] = Math.random() * Math.PI * 2;
   }
 
@@ -127,16 +128,20 @@ export function updateStarfield(time, activeThreads, indexTips = []) {
 
     velocities[i3]     *= 0.98;
     velocities[i3 + 1] *= 0.98;
+    velocities[i3 + 2] *= 0.99;
 
     const sinOffset = Math.sin(time * 0.0001 + phases[i]) * 0.001;
     positions[i3]     += velocities[i3]     + sinOffset;
     positions[i3 + 1] += velocities[i3 + 1] + sinOffset;
+    positions[i3 + 2] += velocities[i3 + 2];
 
-    const half = BOUNDS / 2;
-    if (positions[i3]     >  half) positions[i3]     -= BOUNDS;
-    if (positions[i3]     < -half) positions[i3]     += BOUNDS;
-    if (positions[i3 + 1] >  half) positions[i3 + 1] -= BOUNDS;
-    if (positions[i3 + 1] < -half) positions[i3 + 1] += BOUNDS;
+    const half = BOUNDS / 2, halfZ = BOUNDS_Z / 2;
+    if (positions[i3]     >  half)  positions[i3]     -= BOUNDS;
+    if (positions[i3]     < -half)  positions[i3]     += BOUNDS;
+    if (positions[i3 + 1] >  half)  positions[i3 + 1] -= BOUNDS;
+    if (positions[i3 + 1] < -half)  positions[i3 + 1] += BOUNDS;
+    if (positions[i3 + 2] >  halfZ) positions[i3 + 2] -= BOUNDS_Z;
+    if (positions[i3 + 2] < -halfZ) positions[i3 + 2] += BOUNDS_Z;
 
     const speed = Math.sqrt(velocities[i3] ** 2 + velocities[i3 + 1] ** 2);
     if (speed > MAX_SPEED) {
@@ -175,6 +180,7 @@ export function crushImpulse(originWorld) {
       const strength = 0.08 / Math.max(dist, 0.2);
       velocities[i3]     += (dx / Math.max(dist, 0.001)) * strength;
       velocities[i3 + 1] += (dy / Math.max(dist, 0.001)) * strength;
+      velocities[i3 + 2] += (Math.random() - 0.5) * strength * 0.6;
     }
   }
 }
