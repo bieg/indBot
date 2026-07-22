@@ -5,7 +5,7 @@ const THREAD_COLORS = {
   ghost: 'rgba(255,255,255,0.4)',
 };
 
-// 20 finger-bone segments + 3 knuckle-row connectors
+// 20 finger-bone segments + 3 knuckle-row connectors + 1 thumb-index web
 const HAND_CONNECTIONS = [
   [0,1],[1,2],[2,3],[3,4],
   [0,5],[5,6],[6,7],[7,8],
@@ -13,6 +13,7 @@ const HAND_CONNECTIONS = [
   [0,13],[13,14],[14,15],[15,16],
   [0,17],[17,18],[18,19],[19,20],
   [5,9],[9,13],[13,17],
+  [2,5],  // bi=23: thumb MCP → index MCP — closes the hand contour
 ];
 
 const ORIENTATION_MS = 1000;
@@ -131,10 +132,10 @@ const _SCATTER = Array.from({ length: 21 }, (_, li) =>
   }))
 );
 
-// Pre-baked scatter for bone midpoints — 23 bones × 2 t-values = 46 sample positions
+// Pre-baked scatter for bone midpoints — 24 bones × 2 t-values = 48 sample positions
 // Fewer particles per point (12), slightly smaller spread, fills the gaps between joints.
 const BONE_SCATTER_N = 12;
-const _BONE_SCATTER = Array.from({ length: 23 * 2 }, (_, bi) =>
+const _BONE_SCATTER = Array.from({ length: 24 * 2 }, (_, bi) =>
   Array.from({ length: BONE_SCATTER_N }, (_, k) => ({
     ang:   ((bi * 53 + k * 23 + 11) % 317) / 317 * Math.PI * 2,
     rfrac: 0.42 + ((bi * 31 + k * 41 + 7) % 48) / 100,  // 0.42 – 0.90 — outside skeleton
@@ -181,10 +182,10 @@ const _pinchFlash = [0, 0];
 //  20-22  knuckle row [5,9],[9,13],[13,17]
 //
 // Three width zones:
-//   Knuckle row (20-22): 0.65× scale — bridges gaps between finger bases
-//   Palm roots  (0,4,8,12,16): 0.56× — fills lower palm between wrist and MCPs
-//   Finger shafts (rest): 0.42× — tubular, fingers stay legible
-const _MEM_KNUCKLE = new Set([20, 21, 22]);
+//   Knuckle row (20-22, 23): 0.50× scale — bridges gaps between finger bases + thumb-index web
+//   Palm roots  (0,4,8,12,16): 0.40× — fills lower palm between wrist and MCPs
+//   Finger shafts (rest): 0.30× — tubular, fingers stay legible
+const _MEM_KNUCKLE = new Set([20, 21, 22, 23]);
 const _MEM_PALMROOT = new Set([0, 4, 8, 12, 16]);
 
 function _renderMembrane(ctx, landmarks, scale, masterOpacity) {
@@ -193,13 +194,13 @@ function _renderMembrane(ctx, landmarks, scale, masterOpacity) {
   ctx.lineCap     = 'round';
   ctx.lineJoin    = 'round';
   ctx.shadowBlur  = 0;
-  ctx.strokeStyle = `rgba(8,3,30,${0.62 * masterOpacity})`;
+  ctx.strokeStyle = `rgba(8,3,30,${0.48 * masterOpacity})`;
 
   for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
     const [a, b] = HAND_CONNECTIONS[bi];
     ctx.lineWidth = scale * (
-      _MEM_KNUCKLE.has(bi)  ? 0.65 :
-      _MEM_PALMROOT.has(bi) ? 0.56 : 0.42
+      _MEM_KNUCKLE.has(bi)  ? 0.50 :
+      _MEM_PALMROOT.has(bi) ? 0.40 : 0.30
     );
     ctx.beginPath();
     ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
@@ -209,10 +210,10 @@ function _renderMembrane(ctx, landmarks, scale, masterOpacity) {
   ctx.restore();
 }
 
-// Thin hairline neon outline — only finger shafts + knuckle row.
-// Palm-root spokes (wrist→MCP, bi 0,4,8,12,16) are skipped: the membrane
-// fills the palm already; drawing lines through it creates a rake pattern.
-const _SKIN_SKIP = new Set([0, 4, 8, 12, 16]);
+// Thin hairline neon outline — outer boundary + knuckles + finger shafts.
+// Middle/ring/index wrist spokes (bi 4,8,12) stay hidden: the outer boundary
+// (thumb side bi=0, pinky side bi=16, web bi=23) closes the contour instead.
+const _SKIN_SKIP = new Set([4, 8, 12]);
 
 function _renderSkin(ctx, landmarks, scale, masterOpacity) {
   const w = skeletonCanvas.width, h = skeletonCanvas.height;
@@ -221,7 +222,7 @@ function _renderSkin(ctx, landmarks, scale, masterOpacity) {
   ctx.lineJoin    = 'round';
   ctx.shadowColor = 'rgba(0,195,245,0.50)';
   ctx.shadowBlur  = 24;
-  ctx.strokeStyle = `rgba(0,175,230,${0.28 * masterOpacity})`;
+  ctx.strokeStyle = `rgba(0,175,230,${0.12 * masterOpacity})`;
   ctx.lineWidth   = Math.max(1, scale * 0.016);
 
   for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
