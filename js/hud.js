@@ -110,7 +110,7 @@ export function updateThreadCount(count) {
 // Oldest frames are nearly transparent → newest are bright.
 // Result: moving hand leaves organic particle trails, still hand = tight cloud.
 
-const TRAIL_DEPTH = 20;   // frames of history
+const TRAIL_DEPTH = 14;   // frames of history
 const SCATTER_N   = 30;   // particles per landmark per trail frame
 
 // Per-hand ring buffers: each slot holds an array of 21 landmarks | null
@@ -125,7 +125,7 @@ const _prevLms   = [null, null]; // previous frame landmarks for velocity
 const _SCATTER = Array.from({ length: 21 }, (_, li) =>
   Array.from({ length: SCATTER_N }, (_, k) => ({
     ang:   ((li * 41 + k * 17) % 317) / 317 * Math.PI * 2,
-    rfrac: 0.18 + ((li * 23 + k * 37 + 7) % 82) / 100,
+    rfrac: 0.44 + ((li * 23 + k * 37 + 7) % 50) / 100,  // min 0.44 — always outside skeleton line
     sz:    0.45 + ((li * 7  + k * 13 + 3) % 10) / 7,
     al:    0.40 + ((li * 13 + k * 7)      % 42) / 100,
   }))
@@ -137,21 +137,21 @@ const BONE_SCATTER_N = 12;
 const _BONE_SCATTER = Array.from({ length: 23 * 2 }, (_, bi) =>
   Array.from({ length: BONE_SCATTER_N }, (_, k) => ({
     ang:   ((bi * 53 + k * 23 + 11) % 317) / 317 * Math.PI * 2,
-    rfrac: 0.15 + ((bi * 31 + k * 41 + 7) % 75) / 100,  // 0.15 – 0.90
+    rfrac: 0.42 + ((bi * 31 + k * 41 + 7) % 48) / 100,  // 0.42 – 0.90 — outside skeleton
     sz:    0.38 + ((bi * 11 + k * 17 + 3) % 9)  / 8,     // 0.38 – 1.50
     al:    0.32 + ((bi * 17 + k * 11)      % 38) / 100,   // 0.32 – 0.70
   }))
 );
 
-// Cloud radius per landmark (fraction of hand scale = wrist–MCP9 distance)
-// Back to original loose values — the membrane now provides form, so cloud can breathe.
+// Cloud radius per landmark — larger so the particle ring floats visibly
+// outside the hairline skeleton outline.
 const _LM_R = [
-  0.13,                           // 0  wrist
-  0.07, 0.07, 0.06, 0.10,         // 1-4  thumb
-  0.08, 0.07, 0.06, 0.10,         // 5-8  index
-  0.08, 0.07, 0.06, 0.10,         // 9-12 middle
-  0.08, 0.07, 0.06, 0.10,         // 13-16 ring
-  0.07, 0.06, 0.05, 0.09,         // 17-20 pinky
+  0.22,                           // 0  wrist
+  0.14, 0.13, 0.11, 0.17,         // 1-4  thumb
+  0.16, 0.13, 0.11, 0.17,         // 5-8  index
+  0.16, 0.13, 0.11, 0.17,         // 9-12 middle
+  0.15, 0.12, 0.11, 0.16,         // 13-16 ring
+  0.13, 0.11, 0.09, 0.15,         // 17-20 pinky
 ];
 
 const FINGERTIPS = [4, 8, 12, 16, 20];
@@ -209,8 +209,11 @@ function _renderMembrane(ctx, landmarks, scale, masterOpacity) {
   ctx.restore();
 }
 
-// Thin hairline neon outline — the membrane already provides the dark mass,
-// this only adds a delicate glowing edge. One single thin pass, no fills.
+// Thin hairline neon outline — only finger shafts + knuckle row.
+// Palm-root spokes (wrist→MCP, bi 0,4,8,12,16) are skipped: the membrane
+// fills the palm already; drawing lines through it creates a rake pattern.
+const _SKIN_SKIP = new Set([0, 4, 8, 12, 16]);
+
 function _renderSkin(ctx, landmarks, scale, masterOpacity) {
   const w = skeletonCanvas.width, h = skeletonCanvas.height;
   ctx.save();
@@ -219,9 +222,11 @@ function _renderSkin(ctx, landmarks, scale, masterOpacity) {
   ctx.shadowColor = 'rgba(0,195,245,0.50)';
   ctx.shadowBlur  = 24;
   ctx.strokeStyle = `rgba(0,175,230,${0.28 * masterOpacity})`;
-  ctx.lineWidth   = Math.max(1, scale * 0.016);  // ~1-2px hairline
+  ctx.lineWidth   = Math.max(1, scale * 0.016);
 
-  for (const [a, b] of HAND_CONNECTIONS) {
+  for (let bi = 0; bi < HAND_CONNECTIONS.length; bi++) {
+    if (_SKIN_SKIP.has(bi)) continue;   // skip palm spokes
+    const [a, b] = HAND_CONNECTIONS[bi];
     ctx.beginPath();
     ctx.moveTo((1 - landmarks[a].x) * w, landmarks[a].y * h);
     ctx.lineTo((1 - landmarks[b].x) * w, landmarks[b].y * h);
