@@ -237,7 +237,7 @@ function _renderSkin(ctx, landmarks, scale, masterOpacity) {
 }
 
 // Arcane joint accent dots — bright node at each joint, gold at fingertips
-function _renderJoints(ctx, landmarks, scale, masterOpacity) {
+function _renderJoints(ctx, landmarks, scale, masterOpacity, time = 0) {
   const w = skeletonCanvas.width, h = skeletonCanvas.height;
   ctx.save();
   for (let li = 0; li < 21; li++) {
@@ -247,14 +247,42 @@ function _renderJoints(ctx, landmarks, scale, masterOpacity) {
     const tip = FINGERTIPS.includes(li);
     const r   = (tip ? 0.055 : 0.032) * scale;
 
-    ctx.shadowColor = tip ? 'rgba(255,200,60,0.6)' : 'rgba(0,200,255,0.5)';
-    ctx.shadowBlur  = tip ? 18 : 14;
-    ctx.fillStyle   = tip
-      ? `rgba(255,215,80,${0.55 * masterOpacity})`
-      : `rgba(0,210,255,${0.30 * masterOpacity})`;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
+    if (tip) {
+      const pulse = 0.5 + 0.5 * Math.sin(time * 0.003 + li * 1.31);
+
+      // Pulsing outer ring
+      const ringR = r * (1.9 + pulse * 0.9);
+      ctx.shadowColor = 'rgba(255,200,60,0.35)';
+      ctx.shadowBlur  = 10;
+      ctx.strokeStyle = `rgba(255,220,90,${(0.20 + pulse * 0.22) * masterOpacity})`;
+      ctx.lineWidth   = 1.1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Outer glow dot
+      ctx.shadowColor = 'rgba(255,200,60,0.75)';
+      ctx.shadowBlur  = 20;
+      ctx.fillStyle   = `rgba(255,215,80,${0.60 * masterOpacity})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Bright white-gold core
+      ctx.shadowColor = 'rgba(255,255,200,1.0)';
+      ctx.shadowBlur  = 14;
+      ctx.fillStyle   = `rgba(255,248,200,${(0.80 + pulse * 0.15) * masterOpacity})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.38, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.shadowColor = 'rgba(0,200,255,0.5)';
+      ctx.shadowBlur  = 14;
+      ctx.fillStyle   = `rgba(0,210,255,${0.30 * masterOpacity})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   ctx.restore();
 }
@@ -408,24 +436,38 @@ function _renderTrail(ctx, hi, masterOpacity, time) {
     }
   }
 
-  // Soft gold fingertip halo on the current (newest) frame only
+  // Layered gold fingertip halo on the current (newest) frame only
   for (const li of FINGERTIPS) {
-    const lm = newest[li];
-    const cx = (1 - lm.x) * w;
-    const cy = lm.y * h;
-    const r  = _LM_R[li] * scale * 2.4;
-    const g  = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    g.addColorStop(0,   `rgba(255,210,80,${0.22 * masterOpacity})`);
-    g.addColorStop(0.5, `rgba(255,160,30,${0.07 * masterOpacity})`);
-    g.addColorStop(1,   'rgba(200,80,0,0)');
-    ctx.fillStyle = g;
+    const lm    = newest[li];
+    const cx    = (1 - lm.x) * w;
+    const cy    = lm.y * h;
+    const pulse = 0.5 + 0.5 * Math.sin(time * 0.003 + li * 1.31);
+
+    // Inner tight bloom
+    const r1 = _LM_R[li] * scale * 1.1;
+    const g1 = ctx.createRadialGradient(cx, cy, 0, cx, cy, r1);
+    g1.addColorStop(0,   `rgba(255,245,180,${(0.38 + pulse * 0.12) * masterOpacity})`);
+    g1.addColorStop(0.5, `rgba(255,200,60,${0.18 * masterOpacity})`);
+    g1.addColorStop(1,   'rgba(255,140,20,0)');
+    ctx.fillStyle = g1;
     ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Outer pulsing ambient halo
+    const r2 = _LM_R[li] * scale * (2.6 + pulse * 1.0);
+    const g2 = ctx.createRadialGradient(cx, cy, r1 * 0.4, cx, cy, r2);
+    g2.addColorStop(0,   `rgba(255,180,40,${(0.10 + pulse * 0.07) * masterOpacity})`);
+    g2.addColorStop(0.6, `rgba(255,100,20,${0.03 * masterOpacity})`);
+    g2.addColorStop(1,   'rgba(180,40,0,0)');
+    ctx.fillStyle = g2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r2, 0, Math.PI * 2);
     ctx.fill();
   }
 
   // Arcane joint dots + pinch arc on top of everything
-  _renderJoints(ctx, newest, scale, masterOpacity);
+  _renderJoints(ctx, newest, scale, masterOpacity, time);
   _renderPinch(ctx, newest, scale, masterOpacity, hi, time);
 }
 
