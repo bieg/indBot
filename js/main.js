@@ -106,7 +106,7 @@ function _loop(time) {
   if (lms0) updateCamera(lms0[0].x, lms0[0].y);
 
   updateStarfield(time, activeThreads, indexTips);
-  updateNebula();
+  updateNebula(time, indexTips);
   updateThreads(time);
   updateThreadCount(activeThreads.length);
 
