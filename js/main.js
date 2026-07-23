@@ -6,7 +6,6 @@ import { createThread, updateThreads, activeThreads, crushThreads } from './thre
 // import { initSolly, updateSolly, energizeSolly, setOnSollyTouch } from './solly.js';
 import { initAudio, resumeAudio, playGestureSound } from './audio.js';
 import { initNebula, updateNebula, crushShards } from './nebula.js';
-import { initCreature, updateCreature, crushCreature } from './creature.js';
 import { initHud, setGestureHint, updateThreadCount, drawSkeleton } from './hud.js';
 
 const videoEl = document.getElementById('webcam');
@@ -19,7 +18,6 @@ initScene();
 const scene = getScene();
 initStarfield(scene);
 initNebula(scene);
-initCreature(scene);
 initHud();
 requestAnimationFrame(_preLoop);
 
@@ -71,7 +69,6 @@ function _handleGesture(evt) {
     setGestureHint('crush', 'crush');
     crushThreads(evt.originPoint);
     crushShards(evt.originPoint);
-    crushCreature(evt.originPoint);
   } else if (evt.type === 'rotate') {
     setGestureHint('rotate', 'rotate');
     rotateImpulse(evt.originPoint, evt.direction);
@@ -110,7 +107,6 @@ function _loop(time) {
 
   updateStarfield(time, activeThreads, indexTips);
   updateNebula(time, indexTips);
-  updateCreature(time, activeThreads);
   updateThreads(time);
   updateThreadCount(activeThreads.length);
 
