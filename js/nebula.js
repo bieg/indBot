@@ -26,6 +26,7 @@ const _VERT = `
 const _FRAG = `
   uniform float uTime;
   uniform float uHue;
+  uniform float uSolid;   // 0 = iridescent, 1 = solidified dark panel
   varying vec2  vUv;
   varying vec3  vNormal;
   varying vec3  vEyeDir;
@@ -37,23 +38,24 @@ const _FRAG = `
 
   void main() {
     float facing  = abs(dot(vNormal, vEyeDir));
-    float fresnel = 1.0 - facing;             // 0 = face-on, 1 = edge-on
+    float fresnel = 1.0 - facing;
 
-    // Two animated sine waves across UV — oil-slick interference
     float w  = sin(vUv.x * 6.0 + uTime * 0.55) * 0.5 + 0.5;
     w       *= sin(vUv.y * 4.2 - uTime * 0.38 + 1.3) * 0.5 + 0.5;
 
-    // Hue shifts with fresnel + wave + slow drift
     float h   = uHue + fresnel * 0.12 + w * 0.09 + uTime * 0.012;
     vec3  col = hsl2rgb(vec3(fract(h), 0.85, 0.30));
+    vec3  surface = col * (0.07 + w * 0.10 + fresnel * 0.22);
+    float alpha   = 0.52 + fresnel * 0.28;
 
-    // Surface colour: mostly dark, shimmer + rim adds light
-    vec3 surface = col * (0.07 + w * 0.10 + fresnel * 0.22);
+    // Solidified: near-black with faint hue tint, fully opaque
+    vec3  solidCol   = hsl2rgb(vec3(fract(uHue + 0.02), 0.25, 0.05));
+    float solidAlpha = 0.95;
 
-    // Alpha: solid enough to occlude, rim is slightly more opaque
-    float alpha = 0.52 + fresnel * 0.28;
-
-    gl_FragColor = vec4(surface, alpha);
+    gl_FragColor = vec4(
+      mix(surface,  solidCol,   uSolid),
+      mix(alpha,    solidAlpha, uSolid)
+    );
   }
 `;
 
@@ -94,8 +96,9 @@ export function initNebula(scene) {
       vertexShader:   _VERT,
       fragmentShader: _FRAG,
       uniforms: {
-        uTime: { value: 0 },
-        uHue:  { value: hue },
+        uTime:  { value: 0 },
+        uHue:   { value: hue },
+        uSolid: { value: 0 },
       },
       transparent: true,
       side:        THREE.DoubleSide,
@@ -128,9 +131,11 @@ export function initNebula(scene) {
       (Math.random() - 0.5) * Math.PI * 1.3,
       (Math.random() - 0.5) * Math.PI * 0.6,
     );
-    group.userData.rot    = { x: (Math.random()-0.5)*0.0006, y: (Math.random()-0.5)*0.0005, z: (Math.random()-0.5)*0.0002 };
-    group.userData.driftZ = (Math.random() - 0.5) * 0.0015;
-    group.userData.vel    = new THREE.Vector3();   // velocity for hand push
+    group.userData.rot       = { x: (Math.random()-0.5)*0.0006, y: (Math.random()-0.5)*0.0005, z: (Math.random()-0.5)*0.0002 };
+    group.userData.driftZ    = (Math.random() - 0.5) * 0.0015;
+    group.userData.vel       = new THREE.Vector3();
+    group.userData.solid     = false;   // solidified by fingertip tap
+    group.userData.prevClose = false;   // tap edge detection
 
     scene.add(group);
     panels.push(group);
@@ -152,25 +157,37 @@ export function updateNebula(time, indexTips = []) {
     g.rotation.y += r.y;
     g.rotation.z += r.z;
 
-    // Hand proximity — push panel away from index fingertips
+    // Index fingertip interaction
+    let nowClose = false;
     for (const tip of indexTips) {
       const dx = g.position.x - tip.x;
       const dy = g.position.y - tip.y;
       const dz = g.position.z - tip.z;
       const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-      if (dist < 3.5 && dist > 0.05) {
+
+      // Tap zone — entering triggers solid toggle
+      if (dist < 1.0 && dist > 0.05) {
+        nowClose = true;
+        if (!g.userData.prevClose) {
+          g.userData.solid = !g.userData.solid;
+        }
+      }
+
+      // Push — only when not solidified
+      if (!g.userData.solid && dist < 3.5 && dist > 0.05) {
         const push = 0.004 / Math.max(dist, 0.3);
         g.userData.vel.x += (dx / dist) * push;
         g.userData.vel.y += (dy / dist) * push;
-        // Spin slightly when touched
         g.userData.rot.x += (Math.random() - 0.5) * 0.0008;
         g.userData.rot.y += (Math.random() - 0.5) * 0.0008;
       }
     }
+    g.userData.prevClose = nowClose;
+    g.userData.fill.material.uniforms.uSolid.value = g.userData.solid ? 1 : 0;
 
-    // Apply + damp velocity
+    // Apply + damp velocity — solidified panels barely move
     g.position.add(g.userData.vel);
-    g.userData.vel.multiplyScalar(0.92);
+    g.userData.vel.multiplyScalar(g.userData.solid ? 0.60 : 0.92);
 
     // Z drift
     g.position.z += g.userData.driftZ;
