@@ -82,6 +82,7 @@ function _handleGesture(evt) {
 
 const previewLines = [null, null];
 const grabs = [null, null]; // { thread, which: 'start'|'end', line }
+const panelGrabs = [null, null]; // solid panel being dragged
 const marbles = [];
 const marbleCharges = [null, null]; // { mesh, buf: Vector3[] }
 
@@ -220,6 +221,7 @@ function _loop(time) {
 
     if (!info.present || info.orienting) {
       if (grabs[hi]) _releaseGrab(hi, null);
+      if (panelGrabs[hi]) panelGrabs[hi] = null;
       if (previewLines[hi]) { removePreviewThread(previewLines[hi], scene); previewLines[hi] = null; }
       continue;
     }
@@ -227,32 +229,62 @@ function _loop(time) {
     indexTips.push(mpToWorld(info.tipsMp[0].x, info.tipsMp[0].y));
     const thumbWorld = mpToWorld(info.thumbMp.x, info.thumbMp.y);
     const pinching   = info.ratios[0] < GRAB_PINCH;
+    const midX = (info.thumbMp.x + info.tipsMp[0].x) * 0.5;
+    const midY = (info.thumbMp.y + info.tipsMp[0].y) * 0.5;
+    const midWorld = mpToWorld(midX, midY);
 
-    if (grabs[hi]) {
+    // ── Panel drag (solid panels only, takes priority over everything) ──
+    if (panelGrabs[hi]) {
+      if (info.ratios[0] > GRAB_OPEN) {
+        panelGrabs[hi] = null;
+      } else {
+        panelGrabs[hi].position.x = midWorld.x;
+        panelGrabs[hi].position.y = midWorld.y;
+        panelGrabs[hi].userData.vel.set(0, 0, 0);
+      }
+    } else if (grabs[hi]) {
+      // Thread endpoint drag
       if (info.ratios[0] > GRAB_OPEN) _releaseGrab(hi, thumbWorld);
       else _updateGrab(hi, thumbWorld);
     } else if (pinching) {
-      const hit = findClosestEndpoint(thumbWorld, GRAB_RADIUS);
-      if (hit) {
-        // Endpoint grab — clear any marble charge first
+      // Try solid panel grab first
+      const ndcMidX = (1 - midX) * 2 - 1;
+      const ndcMidY = -(midY * 2 - 1);
+      const camera = getCamera();
+      let nearPanel = null, nearDist2 = 0.22 * 0.22;
+      for (const g of panels) {
+        if (g.userData.tapState !== 2) continue;
+        _projV.copy(g.position).project(camera);
+        const dx = _projV.x - ndcMidX, dy = _projV.y - ndcMidY;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < nearDist2) { nearDist2 = d2; nearPanel = g; }
+      }
+      if (nearPanel) {
+        panelGrabs[hi] = nearPanel;
         if (marbleCharges[hi]) {
           const c = marbleCharges[hi]; marbleCharges[hi] = null;
           scene.remove(c.mesh); c.geo.dispose(); c.mat.dispose();
         }
-        if (previewLines[hi]) { removePreviewThread(previewLines[hi], scene); previewLines[hi] = null; }
-        _startGrab(hi, hit, thumbWorld);
       } else {
-        // No endpoint nearby — charge a marble
-        const midX = (info.thumbMp.x + info.tipsMp[0].x) * 0.5;
-        const midY = (info.thumbMp.y + info.tipsMp[0].y) * 0.5;
-        const midWorld = mpToWorld(midX, midY);
-        if (!marbleCharges[hi]) marbleCharges[hi] = { ...(_mkMarble()), buf: [] };
-        marbleCharges[hi].mesh.position.copy(midWorld);
-        marbleCharges[hi].buf.push(midWorld.clone());
-        if (marbleCharges[hi].buf.length > 8) marbleCharges[hi].buf.shift();
+        // Try thread endpoint grab
+        const hit = findClosestEndpoint(thumbWorld, GRAB_RADIUS);
+        if (hit) {
+          if (marbleCharges[hi]) {
+            const c = marbleCharges[hi]; marbleCharges[hi] = null;
+            scene.remove(c.mesh); c.geo.dispose(); c.mat.dispose();
+          }
+          if (previewLines[hi]) { removePreviewThread(previewLines[hi], scene); previewLines[hi] = null; }
+          _startGrab(hi, hit, thumbWorld);
+        } else {
+          // Marble charge
+          if (!marbleCharges[hi]) marbleCharges[hi] = { ...(_mkMarble()), buf: [] };
+          marbleCharges[hi].mesh.position.copy(midWorld);
+          marbleCharges[hi].buf.push(midWorld.clone());
+          if (marbleCharges[hi].buf.length > 8) marbleCharges[hi].buf.shift();
+        }
       }
     } else if (marbleCharges[hi]) {
-      // Release — compute flick velocity and shoot
+      // Release marble — compute flick velocity and shoot
       const charge = marbleCharges[hi];
       marbleCharges[hi] = null;
       scene.remove(charge.mesh); charge.geo.dispose(); charge.mat.dispose();
@@ -261,7 +293,7 @@ function _loop(time) {
         const raw = buf[buf.length - 1].clone().sub(buf[0]);
         if (raw.length() > 0.035) {
           raw.normalize().multiplyScalar(0.19);
-          raw.z -= 0.07; // bias forward into the scene
+          raw.z -= 0.07;
           _fireMarble(buf[buf.length - 1], raw);
         }
       }
