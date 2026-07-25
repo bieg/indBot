@@ -119,7 +119,9 @@ export function initNebula(scene) {
     const group = new THREE.Group();
     group.add(fill);
     group.add(edge);
-    group.userData.fill = fill;   // keep ref for uniform updates
+    group.userData.fill = fill;
+    group.userData.edge = edge;
+    group.userData.hue  = hue;
 
     group.position.set(
       (Math.random() - 0.5) * 20,
@@ -131,14 +133,40 @@ export function initNebula(scene) {
       (Math.random() - 0.5) * Math.PI * 1.3,
       (Math.random() - 0.5) * Math.PI * 0.6,
     );
-    group.userData.rot       = { x: (Math.random()-0.5)*0.0006, y: (Math.random()-0.5)*0.0005, z: (Math.random()-0.5)*0.0002 };
+    const rotX = (Math.random()-0.5)*0.0006, rotY = (Math.random()-0.5)*0.0005, rotZ = (Math.random()-0.5)*0.0002;
+    group.userData.rot       = { x: rotX, y: rotY, z: rotZ };
+    group.userData.origRot   = { x: rotX, y: rotY, z: rotZ };
     group.userData.driftZ    = (Math.random() - 0.5) * 0.0015;
     group.userData.vel       = new THREE.Vector3();
-    group.userData.solid     = false;   // solidified by fingertip tap
-    group.userData.prevClose = false;   // tap edge detection
+    group.userData.tapState  = 0;   // 0=default 1=colored 2=solid
+    group.userData.prevClose = false;
 
     scene.add(group);
     panels.push(group);
+  }
+}
+
+// ── Tap state ─────────────────────────────────────────────────────────────────
+// 0 = default (iridescent, floating)
+// 1 = colored  (vivid edge glow, still floating)
+// 2 = solid    (frozen, dark)
+function _applyTapState(g) {
+  const { tapState, hue, edge, origRot, rot, vel } = g.userData;
+  if (tapState === 0) {
+    rot.x = origRot.x; rot.y = origRot.y; rot.z = origRot.z;
+    edge.material.color.setHSL(hue, 1.0, 0.78);
+    edge.material.opacity = 0.80;
+  } else if (tapState === 1) {
+    rot.x = origRot.x; rot.y = origRot.y; rot.z = origRot.z;
+    edge.material.color.setHSL(hue, 1.0, 0.97);
+    edge.material.opacity = 1.0;
+    g.userData.fill.material.uniforms.uHue.value = hue + 0.05;
+  } else {
+    rot.x = 0; rot.y = 0; rot.z = 0;
+    vel.set(0, 0, 0);
+    edge.material.color.setHSL(hue, 0.6, 0.55);
+    edge.material.opacity = 0.60;
+    g.userData.fill.material.uniforms.uHue.value = hue;
   }
 }
 
@@ -165,20 +193,16 @@ export function updateNebula(time, indexTips = []) {
       const dz = g.position.z - tip.z;
       const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
-      // Tap zone — entering triggers solid (one-way: tap locks it)
       if (dist < 1.0 && dist > 0.05) {
         nowClose = true;
-        if (!g.userData.prevClose && !g.userData.solid) {
-          g.userData.solid = true;
-          g.userData.rot.x = 0;
-          g.userData.rot.y = 0;
-          g.userData.rot.z = 0;
-          g.userData.vel.set(0, 0, 0);
+        if (!g.userData.prevClose) {
+          g.userData.tapState = (g.userData.tapState + 1) % 3;
+          _applyTapState(g);
         }
       }
 
-      // Push — only when not solidified
-      if (!g.userData.solid && dist < 3.5 && dist > 0.05) {
+      // Push — only when not solid
+      if (g.userData.tapState !== 2 && dist < 3.5 && dist > 0.05) {
         const push = 0.004 / Math.max(dist, 0.3);
         g.userData.vel.x += (dx / dist) * push;
         g.userData.vel.y += (dy / dist) * push;
@@ -187,11 +211,13 @@ export function updateNebula(time, indexTips = []) {
       }
     }
     g.userData.prevClose = nowClose;
-    g.userData.fill.material.uniforms.uSolid.value = g.userData.solid ? 1 : 0;
 
-    // Apply + damp velocity — solidified panels barely move
+    const solid = g.userData.tapState === 2;
+    g.userData.fill.material.uniforms.uSolid.value = solid ? 1 : 0;
+
+    // Apply + damp velocity
     g.position.add(g.userData.vel);
-    g.userData.vel.multiplyScalar(g.userData.solid ? 0.60 : 0.92);
+    g.userData.vel.multiplyScalar(solid ? 0.60 : 0.92);
 
     // Z drift
     g.position.z += g.userData.driftZ;
