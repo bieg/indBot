@@ -90,6 +90,8 @@ const GRAB_RADIUS = 1.3;
 const GRAB_PINCH  = 0.28;
 const GRAB_OPEN   = 0.45;
 const WELD_RADIUS = 0.65;
+const IM_GRAB  = 0.35;  // index+middle together → panel drag start
+const IM_OPEN  = 0.55;  // index+middle apart   → panel drag release
 
 function _startGrab(hi, hit, thumbWorld) {
   const { thread, which } = hit;
@@ -229,27 +231,29 @@ function _loop(time) {
     indexTips.push(mpToWorld(info.tipsMp[0].x, info.tipsMp[0].y));
     const thumbWorld = mpToWorld(info.thumbMp.x, info.thumbMp.y);
     const pinching   = info.ratios[0] < GRAB_PINCH;
+    // Index+middle midpoint — used for panel drag
+    const imMidX = (info.tipsMp[0].x + info.tipsMp[1].x) * 0.5;
+    const imMidY = (info.tipsMp[0].y + info.tipsMp[1].y) * 0.5;
+    const imMidWorld = mpToWorld(imMidX, imMidY);
+    const imClose = info.indexMiddleRatio < IM_GRAB;
+    // Thumb-index midpoint — used for marble charge
     const midX = (info.thumbMp.x + info.tipsMp[0].x) * 0.5;
     const midY = (info.thumbMp.y + info.tipsMp[0].y) * 0.5;
     const midWorld = mpToWorld(midX, midY);
 
-    // ── Panel drag (solid panels only, takes priority over everything) ──
+    // ── Panel drag with index+middle (takes priority over everything) ──
     if (panelGrabs[hi]) {
-      if (info.ratios[0] > GRAB_OPEN) {
+      if (info.indexMiddleRatio > IM_OPEN) {
         panelGrabs[hi] = null;
       } else {
-        panelGrabs[hi].position.x = midWorld.x;
-        panelGrabs[hi].position.y = midWorld.y;
+        panelGrabs[hi].position.x = imMidWorld.x;
+        panelGrabs[hi].position.y = imMidWorld.y;
         panelGrabs[hi].userData.vel.set(0, 0, 0);
       }
-    } else if (grabs[hi]) {
-      // Thread endpoint drag
-      if (info.ratios[0] > GRAB_OPEN) _releaseGrab(hi, thumbWorld);
-      else _updateGrab(hi, thumbWorld);
-    } else if (pinching) {
-      // Try solid panel grab first
-      const ndcMidX = (1 - midX) * 2 - 1;
-      const ndcMidY = -(midY * 2 - 1);
+    } else if (imClose) {
+      // Try to start panel drag on nearest solid panel
+      const ndcMidX = (1 - imMidX) * 2 - 1;
+      const ndcMidY = -(imMidY * 2 - 1);
       const camera = getCamera();
       let nearPanel = null, nearDist2 = 0.22 * 0.22;
       for (const g of panels) {
@@ -259,29 +263,27 @@ function _loop(time) {
         const d2 = dx * dx + dy * dy;
         if (d2 < nearDist2) { nearDist2 = d2; nearPanel = g; }
       }
-      if (nearPanel) {
-        panelGrabs[hi] = nearPanel;
+      if (nearPanel) panelGrabs[hi] = nearPanel;
+    } else if (grabs[hi]) {
+      // Thread endpoint drag
+      if (info.ratios[0] > GRAB_OPEN) _releaseGrab(hi, thumbWorld);
+      else _updateGrab(hi, thumbWorld);
+    } else if (pinching) {
+      // Try thread endpoint grab, then marble
+      const hit = findClosestEndpoint(thumbWorld, GRAB_RADIUS);
+      if (hit) {
         if (marbleCharges[hi]) {
           const c = marbleCharges[hi]; marbleCharges[hi] = null;
           scene.remove(c.mesh); c.geo.dispose(); c.mat.dispose();
         }
+        if (previewLines[hi]) { removePreviewThread(previewLines[hi], scene); previewLines[hi] = null; }
+        _startGrab(hi, hit, thumbWorld);
       } else {
-        // Try thread endpoint grab
-        const hit = findClosestEndpoint(thumbWorld, GRAB_RADIUS);
-        if (hit) {
-          if (marbleCharges[hi]) {
-            const c = marbleCharges[hi]; marbleCharges[hi] = null;
-            scene.remove(c.mesh); c.geo.dispose(); c.mat.dispose();
-          }
-          if (previewLines[hi]) { removePreviewThread(previewLines[hi], scene); previewLines[hi] = null; }
-          _startGrab(hi, hit, thumbWorld);
-        } else {
-          // Marble charge
-          if (!marbleCharges[hi]) marbleCharges[hi] = { ...(_mkMarble()), buf: [] };
-          marbleCharges[hi].mesh.position.copy(midWorld);
-          marbleCharges[hi].buf.push(midWorld.clone());
-          if (marbleCharges[hi].buf.length > 8) marbleCharges[hi].buf.shift();
-        }
+        // Marble charge
+        if (!marbleCharges[hi]) marbleCharges[hi] = { ...(_mkMarble()), buf: [] };
+        marbleCharges[hi].mesh.position.copy(midWorld);
+        marbleCharges[hi].buf.push(midWorld.clone());
+        if (marbleCharges[hi].buf.length > 8) marbleCharges[hi].buf.shift();
       }
     } else if (marbleCharges[hi]) {
       // Release marble — compute flick velocity and shoot
