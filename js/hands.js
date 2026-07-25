@@ -233,6 +233,7 @@ export function getHandInfo(handIndex) {
     orienting,
     entryTime: hs.entryTime,
     ratios: TIPS.map(tip => _dist(sm[4], sm[tip]) / ref),
+    indexMiddleRatio: _dist(sm[8], sm[12]) / ref,
     armThresholds: ARM_THRESHOLDS,
     releaseThresholds: RELEASE_THRESHOLDS,
     fingerStates: hs.fingers.map(f => f.state),
