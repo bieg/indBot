@@ -4,8 +4,8 @@ import { mpToWorld } from './scene.js';
 const FINGERS = ['structure', 'energy', 'gravity', 'ghost'];
 const TIPS    = [8, 12, 16, 20];
 
-const ARM_THRESHOLDS     = [1.4, 1.7, 2.0, 2.3];
-const RELEASE_THRESHOLDS = [1.1, 1.3, 1.6, 1.9];
+const ARM_THRESHOLDS     = [1.0, 1.7, 2.0, 2.3];
+const RELEASE_THRESHOLDS = [0.65, 1.3, 1.6, 1.9];
 const FIST_ARM     = 0.9;
 const FIST_RELEASE = 1.2;
 const FRAMES_REQUIRED = 5;
