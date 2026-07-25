@@ -6,8 +6,8 @@ const TIPS    = [8, 12, 16, 20];
 
 const ARM_THRESHOLDS     = [0.65, 1.5, 1.8, 2.1];
 const RELEASE_THRESHOLDS = [0.40, 1.1, 1.4, 1.7];
-const FIST_ARM     = 0.9;
-const FIST_RELEASE = 1.2;
+const FIST_ARM     = 0.50;
+const FIST_RELEASE = 0.70;
 const FRAMES_REQUIRED = 2;
 const COOLDOWN_MS = 400;
 const ALPHA = 0.3;
