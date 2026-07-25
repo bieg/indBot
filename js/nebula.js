@@ -193,18 +193,8 @@ export function updateNebula(time, indexTips = []) {
       const dz = g.position.z - tip.z;
       const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
-      // Use 2D (X/Y) distance — panels sit at various Z, fingertip is always Z≈0
+      // Push — only when not solid (2D distance)
       const dist2d = Math.sqrt(dx*dx + dy*dy);
-
-      if (dist2d < 2.5 && dist2d > 0.05) {
-        nowClose = true;
-        if (!g.userData.prevClose) {
-          g.userData.tapState = (g.userData.tapState + 1) % 3;
-          _applyTapState(g);
-        }
-      }
-
-      // Push — only when not solid
       if (g.userData.tapState !== 2 && dist2d < 4.0 && dist2d > 0.05) {
         const push = 0.004 / Math.max(dist2d, 0.3);
         g.userData.vel.x += (dx / dist2d) * push;
@@ -213,8 +203,6 @@ export function updateNebula(time, indexTips = []) {
         g.userData.rot.y += (Math.random() - 0.5) * 0.0008;
       }
     }
-    g.userData.prevClose = nowClose;
-
     const solid = g.userData.tapState === 2;
     g.userData.fill.material.uniforms.uSolid.value = solid ? 1 : 0;
 
@@ -227,6 +215,11 @@ export function updateNebula(time, indexTips = []) {
     if (g.position.z >  5) g.position.z -= 15;
     if (g.position.z < -10) g.position.z += 15;
   }
+}
+
+export function tapPanel(group) {
+  group.userData.tapState = (group.userData.tapState + 1) % 3;
+  _applyTapState(group);
 }
 
 // ── Marble explosion ──────────────────────────────────────────────────────────
