@@ -1,63 +1,8 @@
 import * as THREE from 'three';
 import { BLOOM_LAYER } from './scene.js';
 
-// Large flat panels in 3D space.
-// Each has an iridescent thin-film surface shader + glowing edge on BLOOM_LAYER.
-// Index finger proximity pushes panels away — they're part of the physical space.
-
 const COUNT = 10;
 export const panels = [];
-
-// ── Iridescent surface shader ─────────────────────────────────────────────────
-// Dark glass base with animated oil-slick colour shimmer + fresnel rim glow.
-const _VERT = `
-  varying vec2  vUv;
-  varying vec3  vNormal;
-  varying vec3  vEyeDir;
-  void main() {
-    vUv = uv;
-    vec4 mv  = modelViewMatrix * vec4(position, 1.0);
-    vNormal  = normalize(normalMatrix * normal);
-    vEyeDir  = normalize(-mv.xyz);
-    gl_Position = projectionMatrix * mv;
-  }
-`;
-
-const _FRAG = `
-  uniform float uTime;
-  uniform float uHue;
-  uniform float uSolid;   // 0 = iridescent, 1 = solidified dark panel
-  varying vec2  vUv;
-  varying vec3  vNormal;
-  varying vec3  vEyeDir;
-
-  vec3 hsl2rgb(vec3 c) {
-    vec3 p = abs(fract(c.xxx + vec3(0.0, 2.0/3.0, 1.0/3.0)) * 6.0 - 3.0);
-    return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
-  }
-
-  void main() {
-    float facing  = abs(dot(vNormal, vEyeDir));
-    float fresnel = 1.0 - facing;
-
-    float w  = sin(vUv.x * 6.0 + uTime * 0.55) * 0.5 + 0.5;
-    w       *= sin(vUv.y * 4.2 - uTime * 0.38 + 1.3) * 0.5 + 0.5;
-
-    float h   = uHue + fresnel * 0.12 + w * 0.09 + uTime * 0.012;
-    vec3  col = hsl2rgb(vec3(fract(h), 0.85, 0.30));
-    vec3  surface = col * (0.07 + w * 0.10 + fresnel * 0.22);
-    float alpha   = 0.52 + fresnel * 0.28;
-
-    // Solidified: near-black with faint hue tint, fully opaque
-    vec3  solidCol   = hsl2rgb(vec3(fract(uHue + 0.02), 0.25, 0.05));
-    float solidAlpha = 0.95;
-
-    gl_FragColor = vec4(
-      mix(surface,  solidCol,   uSolid),
-      mix(alpha,    solidAlpha, uSolid)
-    );
-  }
-`;
 
 // ── Geometry helpers ──────────────────────────────────────────────────────────
 function _makeGeo(i) {
@@ -70,11 +15,6 @@ function _makeGeo(i) {
       -s * 0.65, -s * 0.45, 0,
        s * 0.65, -s * 0.45, 0,
     ]), 3));
-    geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([
-      0.5, 1.0,
-      0.0, 0.0,
-      1.0, 0.0,
-    ]), 2));
     geo.setIndex([0, 1, 2]);
     geo.computeVertexNormals();
     return geo;
@@ -91,16 +31,10 @@ export function initNebula(scene) {
     const geo = _makeGeo(i);
     const hue = 0.54 + (i / COUNT) * 0.30;   // cyan-blue → deep violet
 
-    // Iridescent fill
-    const fillMat = new THREE.ShaderMaterial({
-      vertexShader:   _VERT,
-      fragmentShader: _FRAG,
-      uniforms: {
-        uTime:  { value: 0 },
-        uHue:   { value: hue },
-        uSolid: { value: 0 },
-      },
+    // Invisible fill — transparent but present for raycasting
+    const fillMat = new THREE.MeshBasicMaterial({
       transparent: true,
+      opacity:     0,
       side:        THREE.DoubleSide,
       depthWrite:  false,
     });
@@ -160,25 +94,18 @@ function _applyTapState(g) {
     rot.x = origRot.x; rot.y = origRot.y; rot.z = origRot.z;
     edge.material.color.setHSL(hue, 1.0, 0.97);
     edge.material.opacity = 1.0;
-    g.userData.fill.material.uniforms.uHue.value = hue + 0.05;
   } else {
     rot.x = 0; rot.y = 0; rot.z = 0;
     vel.set(0, 0, 0);
     edge.material.color.setHSL(hue, 0.6, 0.55);
     edge.material.opacity = 0.60;
-    g.userData.fill.material.uniforms.uHue.value = hue;
   }
 }
 
 // ── Update ────────────────────────────────────────────────────────────────────
 // indexTips: array of THREE.Vector3 (world space) — index fingertip positions
 export function updateNebula(time, indexTips = []) {
-  const t = time * 0.001;
-
   for (const g of panels) {
-    // Update shader time
-    g.userData.fill.material.uniforms.uTime.value = t;
-
     // Rotation
     const r = g.userData.rot;
     g.rotation.x += r.x;
@@ -186,12 +113,9 @@ export function updateNebula(time, indexTips = []) {
     g.rotation.z += r.z;
 
     // Index fingertip interaction
-    let nowClose = false;
     for (const tip of indexTips) {
       const dx = g.position.x - tip.x;
       const dy = g.position.y - tip.y;
-      const dz = g.position.z - tip.z;
-      const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
       // Push — only when not solid (2D distance)
       const dist2d = Math.sqrt(dx*dx + dy*dy);
@@ -204,7 +128,6 @@ export function updateNebula(time, indexTips = []) {
       }
     }
     const solid = g.userData.tapState === 2;
-    g.userData.fill.material.uniforms.uSolid.value = solid ? 1 : 0;
 
     // Apply + damp velocity
     g.position.add(g.userData.vel);
@@ -230,7 +153,7 @@ export function explodePanel(group, scene) {
   scene.remove(group);
 
   const pos = group.position.clone();
-  const hue = group.userData.fill?.material?.uniforms?.uHue?.value ?? 0.6;
+  const hue = group.userData.hue ?? 0.6;
   const col = new THREE.Color().setHSL(hue, 1.0, 0.72);
 
   const shards = [];
