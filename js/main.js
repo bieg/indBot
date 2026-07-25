@@ -176,6 +176,7 @@ function _updateMarbles() {
 // Robust regardless of panel rotation (raycasting fails on edge-on panels).
 const _prevRayHit = new Set();
 const _projV = new THREE.Vector3();
+const _dragRay = new THREE.Raycaster();
 const TAP_NDC_RADIUS = 0.20; // ~10% of screen half-width
 
 function _updatePanelTaps(handInfos) {
@@ -184,6 +185,7 @@ function _updatePanelTaps(handInfos) {
 
   for (const info of handInfos) {
     if (!info.present || info.orienting) continue;
+    if (info.indexMiddleRatio < IM_GRAB) continue; // drag mode — skip tap
     const ndcX = (1 - info.tipsMp[0].x) * 2 - 1;
     const ndcY = -(info.tipsMp[0].y * 2 - 1);
 
@@ -246,8 +248,15 @@ function _loop(time) {
       if (info.indexMiddleRatio > IM_OPEN) {
         panelGrabs[hi] = null;
       } else {
-        panelGrabs[hi].position.x = imMidWorld.x;
-        panelGrabs[hi].position.y = imMidWorld.y;
+        // Cast ray through finger midpoint and intersect with panel's Z plane
+        const ndcX = (1 - imMidX) * 2 - 1;
+        const ndcY = -(imMidY * 2 - 1);
+        const cam = getCamera();
+        _dragRay.setFromCamera({ x: ndcX, y: ndcY }, cam);
+        const pz = panelGrabs[hi].position.z;
+        const t  = (pz - _dragRay.ray.origin.z) / _dragRay.ray.direction.z;
+        panelGrabs[hi].position.x = _dragRay.ray.origin.x + t * _dragRay.ray.direction.x;
+        panelGrabs[hi].position.y = _dragRay.ray.origin.y + t * _dragRay.ray.direction.y;
         panelGrabs[hi].userData.vel.set(0, 0, 0);
       }
     } else if (imClose) {
