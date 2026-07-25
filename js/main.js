@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import { initScene, render, getScene, mpToWorld, updateCamera, BLOOM_LAYER } from './scene.js';
+import { initScene, render, getScene, getCamera, mpToWorld, updateCamera, BLOOM_LAYER } from './scene.js';
 import { initHands, detectHands, setOnGesture, getHandGrowingState, getHandInfo } from './hands.js';
 import * as hands from './hands.js';
 import { initStarfield, updateStarfield, crushImpulse, rotateImpulse } from './starfield.js';
 import { createThread, updateThreads, activeThreads, crushThreads, createPreviewThread, updatePreviewThread, removePreviewThread, findClosestEndpoint, getEndpointPos, setEndpointPos, flashWeld, checkAndFlashTriangle } from './threads.js';
 // import { initSolly, updateSolly, energizeSolly, setOnSollyTouch } from './solly.js';
 import { initAudio, resumeAudio, playGestureSound } from './audio.js';
-import { initNebula, updateNebula, crushShards, panels, explodePanel } from './nebula.js';
+import { initNebula, updateNebula, crushShards, panels, explodePanel, tapPanel } from './nebula.js';
 import { initHud, setGestureHint, updateThreadCount, drawSkeleton } from './hud.js';
 
 const videoEl = document.getElementById('webcam');
@@ -168,6 +168,33 @@ function _updateMarbles() {
   }
 }
 
+// ── Raycaster-based panel tap ──────────────────────────────────────────────────
+const _raycaster = new THREE.Raycaster();
+const _prevRayHit = new Set();
+
+function _updatePanelTaps(handInfos) {
+  const camera = getCamera();
+  const nowHit = new Set();
+
+  for (const info of handInfos) {
+    if (!info.present || info.orienting) continue;
+    // Index fingertip in NDC — account for CSS mirror (1 - mpX)
+    const ndcX = (1 - info.tipsMp[0].x) * 2 - 1;
+    const ndcY = -(info.tipsMp[0].y * 2 - 1);
+    _raycaster.setFromCamera({ x: ndcX, y: ndcY }, camera);
+    const fillMeshes = panels.map(g => g.userData.fill).filter(Boolean);
+    const hits = _raycaster.intersectObjects(fillMeshes);
+    if (hits.length > 0) {
+      const panel = hits[0].object.parent;
+      nowHit.add(panel);
+      if (!_prevRayHit.has(panel)) tapPanel(panel); // enter = tap
+    }
+  }
+
+  _prevRayHit.clear();
+  nowHit.forEach(p => _prevRayHit.add(p));
+}
+
 let lastHint = null;
 
 function _loop(time) {
@@ -260,6 +287,7 @@ function _loop(time) {
   updateThreadCount(activeThreads.length);
 
   const handInfos = [getHandInfo(0), getHandInfo(1)];
+  _updatePanelTaps(handInfos);
   drawSkeleton(hands.latestResult, handInfos, time);
 
   render();
