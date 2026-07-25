@@ -179,25 +179,24 @@ function _updateWristRotation(hs, sm, hi) {
 }
 
 function _updateFingerState(st, ratio, armT, releaseT, fire) {
-  const now = performance.now();
-  if (now - st.lastFire < COOLDOWN_MS) { st.state = 'cooldown'; st.frames = 0; return; }
-  if (st.state === 'cooldown') { st.state = 'idle'; st.frames = 0; }
+  // Release always takes priority — hand must close before next fire
+  if (ratio < releaseT) {
+    st.state = 'idle';
+    st.frames = 0;
+    return;
+  }
+  // 'armed' persists until hand closes; prevents repeated firing on a held pose
+  if (st.state === 'armed') return;
 
   if (ratio > armT) {
-    if (st.state === 'idle') st.state = 'growing';
+    if (st.state === 'idle') { st.state = 'growing'; st.frames = 0; }
     if (st.state === 'growing') {
       st.frames++;
       if (st.frames >= FRAMES_REQUIRED) {
         st.state = 'armed';
         st.frames = 0;
-        st.lastFire = now;
         fire();
       }
-    }
-  } else if (ratio < releaseT) {
-    if (st.state === 'armed' || st.state === 'growing') {
-      st.state = 'idle';
-      st.frames = 0;
     }
   }
 }
