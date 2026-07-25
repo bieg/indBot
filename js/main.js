@@ -2,7 +2,7 @@ import { initScene, render, getScene, mpToWorld, updateCamera } from './scene.js
 import { initHands, detectHands, setOnGesture, getHandGrowingState, getHandInfo } from './hands.js';
 import * as hands from './hands.js';
 import { initStarfield, updateStarfield, crushImpulse, rotateImpulse } from './starfield.js';
-import { createThread, updateThreads, activeThreads, crushThreads, createPreviewThread, updatePreviewThread, removePreviewThread } from './threads.js';
+import { createThread, updateThreads, activeThreads, crushThreads, createPreviewThread, updatePreviewThread, removePreviewThread, findClosestEndpoint, getEndpointPos, setEndpointPos, flashWeld, checkAndFlashTriangle } from './threads.js';
 // import { initSolly, updateSolly, energizeSolly, setOnSollyTouch } from './solly.js';
 import { initAudio, resumeAudio, playGestureSound } from './audio.js';
 import { initNebula, updateNebula, crushShards } from './nebula.js';
@@ -80,6 +80,54 @@ function _handleGesture(evt) {
 }
 
 const previewLines = [null, null];
+const grabs = [null, null]; // { thread, which: 'start'|'end', line }
+
+const GRAB_RADIUS = 1.3;
+const GRAB_PINCH  = 0.28;
+const GRAB_OPEN   = 0.45;
+const WELD_RADIUS = 0.65;
+
+function _startGrab(hi, hit, thumbWorld) {
+  const { thread, which } = hit;
+  thread.mesh.visible = false;
+  const fixedPos = getEndpointPos(thread, which === 'start' ? 'end' : 'start');
+  const line = createPreviewThread(scene);
+  line.material.opacity = 1.0;
+  updatePreviewThread(line, fixedPos, thumbWorld);
+  grabs[hi] = { thread, which, line };
+}
+
+function _updateGrab(hi, thumbWorld) {
+  const { thread, which, line } = grabs[hi];
+  const fixedPos = getEndpointPos(thread, which === 'start' ? 'end' : 'start');
+  updatePreviewThread(line, fixedPos, thumbWorld);
+}
+
+function _releaseGrab(hi, thumbWorld) {
+  const { thread, which, line } = grabs[hi];
+  grabs[hi] = null;
+  removePreviewThread(line, scene);
+  thread.mesh.visible = true;
+
+  if (!thumbWorld) { thread.rebuildMesh(); return; }
+
+  const snap = findClosestEndpoint(thumbWorld, WELD_RADIUS, thread);
+  if (snap) {
+    const snapPos = getEndpointPos(snap.thread, snap.which).clone();
+    setEndpointPos(thread, which, snapPos);
+    thread[which === 'start' ? 'startWelded' : 'endWelded'] = true;
+    snap.thread[snap.which === 'start' ? 'startWelded' : 'endWelded'] = true;
+    thread.rebuildMesh();
+    snap.thread.rebuildMesh();
+    flashWeld(snapPos, scene);
+    const triangle = checkAndFlashTriangle(scene);
+    if (triangle) playGestureSound('gravity');
+  } else {
+    setEndpointPos(thread, which, thumbWorld);
+    thread.rebuildMesh();
+  }
+}
+
 let lastHint = null;
 
 function _loop(time) {
@@ -94,26 +142,43 @@ function _loop(time) {
     if (hint && hint !== 'crush') setGestureHint(hint, 'growing');
   }
 
-  // Live structure preview + index fingertip positions
+  // Grab management + live preview + index fingertip positions
   const indexTips = [];
   for (const hi of [0, 1]) {
     const info = getHandInfo(hi);
-    if (info.present && !info.orienting) {
-      indexTips.push(mpToWorld(info.tipsMp[0].x, info.tipsMp[0].y));
 
-      // Show a live preview line between thumb and index when separating
+    if (!info.present || info.orienting) {
+      if (grabs[hi]) _releaseGrab(hi, null);
+      if (previewLines[hi]) { removePreviewThread(previewLines[hi], scene); previewLines[hi] = null; }
+      continue;
+    }
+
+    indexTips.push(mpToWorld(info.tipsMp[0].x, info.tipsMp[0].y));
+    const thumbWorld = mpToWorld(info.thumbMp.x, info.thumbMp.y);
+    const pinching   = info.ratios[0] < GRAB_PINCH;
+
+    if (grabs[hi]) {
+      if (info.ratios[0] > GRAB_OPEN) _releaseGrab(hi, thumbWorld);
+      else _updateGrab(hi, thumbWorld);
+    } else if (pinching) {
+      const hit = findClosestEndpoint(thumbWorld, GRAB_RADIUS);
+      if (hit) {
+        // Kill any active preview before starting grab
+        if (previewLines[hi]) { removePreviewThread(previewLines[hi], scene); previewLines[hi] = null; }
+        _startGrab(hi, hit, thumbWorld);
+      }
+    }
+
+    // Draw preview only when not in grab mode and fingers are separating
+    if (!grabs[hi]) {
       if (info.ratios[0] > 0.28) {
-        const thumb = mpToWorld(info.thumbMp.x, info.thumbMp.y);
-        const idx   = mpToWorld(info.tipsMp[0].x, info.tipsMp[0].y);
+        const idx = mpToWorld(info.tipsMp[0].x, info.tipsMp[0].y);
         if (!previewLines[hi]) previewLines[hi] = createPreviewThread(scene);
-        updatePreviewThread(previewLines[hi], thumb, idx);
+        updatePreviewThread(previewLines[hi], thumbWorld, idx);
       } else if (previewLines[hi]) {
         removePreviewThread(previewLines[hi], scene);
         previewLines[hi] = null;
       }
-    } else if (previewLines[hi]) {
-      removePreviewThread(previewLines[hi], scene);
-      previewLines[hi] = null;
     }
   }
 
