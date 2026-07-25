@@ -2,7 +2,7 @@ import { initScene, render, getScene, mpToWorld, updateCamera } from './scene.js
 import { initHands, detectHands, setOnGesture, getHandGrowingState, getHandInfo } from './hands.js';
 import * as hands from './hands.js';
 import { initStarfield, updateStarfield, crushImpulse, rotateImpulse } from './starfield.js';
-import { createThread, updateThreads, activeThreads, crushThreads } from './threads.js';
+import { createThread, updateThreads, activeThreads, crushThreads, createPreviewThread, updatePreviewThread, removePreviewThread } from './threads.js';
 // import { initSolly, updateSolly, energizeSolly, setOnSollyTouch } from './solly.js';
 import { initAudio, resumeAudio, playGestureSound } from './audio.js';
 import { initNebula, updateNebula, crushShards } from './nebula.js';
@@ -73,11 +73,17 @@ function _handleGesture(evt) {
     setGestureHint('rotate', 'rotate');
     rotateImpulse(evt.originPoint, evt.direction);
   } else {
+    // Clear preview before committing permanent thread
+    if (previewLines[evt.handIndex]) {
+      removePreviewThread(previewLines[evt.handIndex], scene);
+      previewLines[evt.handIndex] = null;
+    }
     setGestureHint(evt.type, 'confirmed');
     createThread(evt.type, evt.originPoint, evt.targetPoint, scene, evt.separationSpeed ?? null);
   }
 }
 
+const previewLines = [null, null];
 let lastHint = null;
 
 function _loop(time) {
@@ -92,12 +98,26 @@ function _loop(time) {
     if (hint && hint !== 'crush') setGestureHint(hint, 'growing');
   }
 
-  // collect index fingertip positions for star touch
+  // Live structure preview + index fingertip positions
   const indexTips = [];
   for (const hi of [0, 1]) {
     const info = getHandInfo(hi);
     if (info.present && !info.orienting) {
       indexTips.push(mpToWorld(info.tipsMp[0].x, info.tipsMp[0].y));
+
+      // Show a live preview line between thumb and index when separating
+      if (info.ratios[0] > 0.28) {
+        const thumb = mpToWorld(info.thumbMp.x, info.thumbMp.y);
+        const idx   = mpToWorld(info.tipsMp[0].x, info.tipsMp[0].y);
+        if (!previewLines[hi]) previewLines[hi] = createPreviewThread(scene);
+        updatePreviewThread(previewLines[hi], thumb, idx);
+      } else if (previewLines[hi]) {
+        removePreviewThread(previewLines[hi], scene);
+        previewLines[hi] = null;
+      }
+    } else if (previewLines[hi]) {
+      removePreviewThread(previewLines[hi], scene);
+      previewLines[hi] = null;
     }
   }
 
