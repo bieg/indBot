@@ -4,7 +4,7 @@ import { BLOOM_LAYER } from './scene.js';
 export const activeThreads = [];
 const CRUSH_RADIUS = 2.5;
 const FADE_DURATION = 250;
-const BIRTH_MS = 350;
+const BIRTH_MS = 80;
 
 const THREAD_COLORS = {
   structure: 0xffffff,
@@ -107,6 +107,30 @@ export function updateThreads(time) {
       t.mesh.material.opacity = birthFade * maxOp;
     }
   }
+}
+
+// ── Live preview line (follows fingers before gesture commits) ─────────────────
+export function createPreviewThread(scene) {
+  const pts = new Float32Array(6);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+  const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 });
+  const line = new THREE.Line(geo, mat);
+  scene.add(line);
+  return line;
+}
+
+export function updatePreviewThread(line, start, end) {
+  const pos = line.geometry.attributes.position;
+  pos.setXYZ(0, start.x, start.y, start.z);
+  pos.setXYZ(1, end.x, end.y, end.z);
+  pos.needsUpdate = true;
+}
+
+export function removePreviewThread(line, scene) {
+  scene.remove(line);
+  line.geometry.dispose();
+  line.material.dispose();
 }
 
 export function crushThreads(originWorld) {
