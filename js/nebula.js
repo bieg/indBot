@@ -193,7 +193,10 @@ export function updateNebula(time, indexTips = []) {
       const dz = g.position.z - tip.z;
       const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
-      if (dist < 1.0 && dist > 0.05) {
+      // Use 2D (X/Y) distance — panels sit at various Z, fingertip is always Z≈0
+      const dist2d = Math.sqrt(dx*dx + dy*dy);
+
+      if (dist2d < 2.5 && dist2d > 0.05) {
         nowClose = true;
         if (!g.userData.prevClose) {
           g.userData.tapState = (g.userData.tapState + 1) % 3;
@@ -202,10 +205,10 @@ export function updateNebula(time, indexTips = []) {
       }
 
       // Push — only when not solid
-      if (g.userData.tapState !== 2 && dist < 3.5 && dist > 0.05) {
-        const push = 0.004 / Math.max(dist, 0.3);
-        g.userData.vel.x += (dx / dist) * push;
-        g.userData.vel.y += (dy / dist) * push;
+      if (g.userData.tapState !== 2 && dist2d < 4.0 && dist2d > 0.05) {
+        const push = 0.004 / Math.max(dist2d, 0.3);
+        g.userData.vel.x += (dx / dist2d) * push;
+        g.userData.vel.y += (dy / dist2d) * push;
         g.userData.rot.x += (Math.random() - 0.5) * 0.0008;
         g.userData.rot.y += (Math.random() - 0.5) * 0.0008;
       }
