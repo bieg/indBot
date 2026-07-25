@@ -74,7 +74,7 @@ function _handleGesture(evt) {
     rotateImpulse(evt.originPoint, evt.direction);
   } else {
     setGestureHint(evt.type, 'confirmed');
-    createThread(evt.type, evt.originPoint, evt.targetPoint, scene);
+    createThread(evt.type, evt.originPoint, evt.targetPoint, scene, evt.separationSpeed ?? null);
   }
 }
 

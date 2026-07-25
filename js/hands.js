@@ -55,6 +55,7 @@ function _initHandState() {
     fist: { state: 'idle', frames: 0, lastFire: 0 },
     rollHistory: [],
     rotateGesture: { lastFire: 0 },
+    strokeVelBuf: [],   // rolling ratio-delta buffer for structure gesture speed
   };
 }
 
@@ -106,11 +107,30 @@ export function detectHands(videoEl) {
 
     for (let fi = 0; fi < FINGERS.length; fi++) {
       const ratio = _dist(sm[4], sm[TIPS[fi]]) / Math.max(ref, 0.01);
+
+      // Accumulate separation velocity for the structure gesture (thumb-index)
+      if (fi === 0) {
+        const prev  = hs.fingers[0]._prevRatio ?? ratio;
+        const delta = ratio - prev;
+        if (delta > 0 && ratio > 0.5) {
+          hs.strokeVelBuf.push(delta);
+          if (hs.strokeVelBuf.length > 30) hs.strokeVelBuf.shift();
+        }
+        hs.fingers[0]._prevRatio = ratio;
+      }
+
       _updateFingerState(hs.fingers[fi], ratio, ARM_THRESHOLDS[fi], RELEASE_THRESHOLDS[fi], () => {
         if (!onGesture) return;
         const origin = mpToWorld(sm[4].x, sm[4].y);
-        const tip = mpToWorld(sm[TIPS[fi]].x, sm[TIPS[fi]].y);
-        onGesture({ type: FINGERS[fi], handIndex: hi, originPoint: origin, targetPoint: tip });
+        const tip    = mpToWorld(sm[TIPS[fi]].x, sm[TIPS[fi]].y);
+        const evt    = { type: FINGERS[fi], handIndex: hi, originPoint: origin, targetPoint: tip };
+        if (fi === 0) {
+          evt.separationSpeed = hs.strokeVelBuf.length
+            ? hs.strokeVelBuf.reduce((a, b) => a + b, 0) / hs.strokeVelBuf.length
+            : 0.04;
+          hs.strokeVelBuf = [];
+        }
+        onGesture(evt);
       });
     }
 

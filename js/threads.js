@@ -14,7 +14,7 @@ const THREAD_COLORS = {
 };
 
 class Thread {
-  constructor(type, start, end, scene) {
+  constructor(type, start, end, scene, speed = null) {
     this.type = type;
     this.start = start.clone();
     this.end = end.clone();
@@ -24,7 +24,7 @@ class Thread {
     this.strength = 1.0;
     this.dying = false;
     this.dyingStart = 0;
-    this.mesh = _buildMesh(type, start, end);
+    this.mesh = _buildMesh(type, start, end, speed);
     scene.add(this.mesh);
     this._scene = scene;
   }
@@ -36,11 +36,15 @@ class Thread {
   }
 }
 
-function _buildMesh(type, start, end) {
+function _buildMesh(type, start, end, speed = null) {
   // all threads start transparent at opacity 0 — birth fade-in in updateThreads
   if (type === 'structure') {
+    // speed: slow (0.008) → thick (0.060), fast (0.067+) → thin (0.006)
+    const radius = speed != null
+      ? Math.max(0.006, 0.006 + 0.054 * Math.max(0, 1 - speed * 15))
+      : 0.012;
     const curve = new THREE.CatmullRomCurve3([start, end]);
-    const geo = new THREE.TubeGeometry(curve, 20, 0.012, 6, false);
+    const geo = new THREE.TubeGeometry(curve, 20, radius, 6, false);
     const mat = new THREE.MeshBasicMaterial({ color: THREAD_COLORS.structure, transparent: true, opacity: 0 });
     return new THREE.Mesh(geo, mat);
   }
@@ -59,8 +63,8 @@ function _buildMesh(type, start, end) {
   return mesh;
 }
 
-export function createThread(type, start, end, scene) {
-  const t = new Thread(type, start, end, scene);
+export function createThread(type, start, end, scene, speed = null) {
+  const t = new Thread(type, start, end, scene, speed);
   activeThreads.push(t);
   return t;
 }
