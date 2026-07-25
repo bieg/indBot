@@ -85,20 +85,25 @@ export function initNebula(scene) {
 // 1 = colored  (vivid edge glow, still floating)
 // 2 = solid    (frozen, dark)
 function _applyTapState(g) {
-  const { tapState, hue, edge, origRot, rot, vel } = g.userData;
+  const { tapState, hue, edge, fill, origRot, rot, vel } = g.userData;
   if (tapState === 0) {
     rot.x = origRot.x; rot.y = origRot.y; rot.z = origRot.z;
     edge.material.color.setHSL(hue, 1.0, 0.78);
     edge.material.opacity = 0.80;
+    fill.material.opacity = 0;
   } else if (tapState === 1) {
     rot.x = origRot.x; rot.y = origRot.y; rot.z = origRot.z;
     edge.material.color.setHSL(hue, 1.0, 0.97);
     edge.material.opacity = 1.0;
+    fill.material.opacity = 0;
   } else {
+    // Solid: stop moving, fill becomes 50% opaque
     rot.x = 0; rot.y = 0; rot.z = 0;
     vel.set(0, 0, 0);
     edge.material.color.setHSL(hue, 0.6, 0.55);
     edge.material.opacity = 0.60;
+    fill.material.color.setHSL(hue, 0.7, 0.4);
+    fill.material.opacity = 0.5;
   }
 }
 
