@@ -6,7 +6,7 @@ import { BLOOM_LAYER } from './scene.js';
 // Index finger proximity pushes panels away — they're part of the physical space.
 
 const COUNT = 10;
-const panels = [];
+export const panels = [];
 
 // ── Iridescent surface shader ─────────────────────────────────────────────────
 // Dark glass base with animated oil-slick colour shimmer + fresnel rim glow.
@@ -165,11 +165,15 @@ export function updateNebula(time, indexTips = []) {
       const dz = g.position.z - tip.z;
       const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
-      // Tap zone — entering triggers solid toggle
+      // Tap zone — entering triggers solid (one-way: tap locks it)
       if (dist < 1.0 && dist > 0.05) {
         nowClose = true;
-        if (!g.userData.prevClose) {
-          g.userData.solid = !g.userData.solid;
+        if (!g.userData.prevClose && !g.userData.solid) {
+          g.userData.solid = true;
+          g.userData.rot.x = 0;
+          g.userData.rot.y = 0;
+          g.userData.rot.z = 0;
+          g.userData.vel.set(0, 0, 0);
         }
       }
 
@@ -194,6 +198,64 @@ export function updateNebula(time, indexTips = []) {
     if (g.position.z >  5) g.position.z -= 15;
     if (g.position.z < -10) g.position.z += 15;
   }
+}
+
+// ── Marble explosion ──────────────────────────────────────────────────────────
+export function explodePanel(group, scene) {
+  const idx = panels.indexOf(group);
+  if (idx === -1) return;
+  panels.splice(idx, 1);
+  scene.remove(group);
+
+  const pos = group.position.clone();
+  const hue = group.userData.fill?.material?.uniforms?.uHue?.value ?? 0.6;
+  const col = new THREE.Color().setHSL(hue, 1.0, 0.72);
+
+  const shards = [];
+  for (let i = 0; i < 130; i++) {
+    const s = 0.04 + Math.random() * 0.30;
+    let geo;
+    if (i % 3 === 0) {
+      geo = new THREE.PlaneGeometry(s, s * (0.25 + Math.random() * 1.2));
+    } else {
+      geo = new THREE.BufferGeometry();
+      const a = Math.random() * Math.PI * 2, b = a + (0.8 + Math.random()) * 1.2;
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+        0, 0, 0, s * Math.cos(a), s * Math.sin(a), 0, s * Math.cos(b), s * Math.sin(b), 0,
+      ]), 3));
+      geo.setIndex([0, 1, 2]);
+      geo.computeVertexNormals();
+    }
+    const mat = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.92, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geo, mat);
+    const spread = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
+    mesh.position.copy(pos).addScaledVector(spread, Math.random() * 0.6);
+    mesh.rotation.set(Math.random()*6, Math.random()*6, Math.random()*6);
+    const spd = 0.06 + Math.random() * 0.22;
+    const dir = new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, (Math.random()-0.3)*0.6).normalize();
+    const rotV = { x:(Math.random()-0.5)*0.14, y:(Math.random()-0.5)*0.14, z:(Math.random()-0.5)*0.10 };
+    shards.push({ mesh, vel: dir.multiplyScalar(spd), rotV, mat });
+    scene.add(mesh);
+  }
+
+  const born = performance.now();
+  const LIFE = 1800;
+  (function tick() {
+    const f = Math.min((performance.now() - born) / LIFE, 1);
+    if (f >= 1) {
+      shards.forEach(s => { scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mat.dispose(); });
+      return;
+    }
+    for (const s of shards) {
+      s.mesh.position.add(s.vel);
+      s.vel.multiplyScalar(0.93);
+      s.mesh.rotation.x += s.rotV.x;
+      s.mesh.rotation.y += s.rotV.y;
+      s.mesh.rotation.z += s.rotV.z;
+      s.mat.opacity = 0.92 * Math.pow(1 - f, 1.4);
+    }
+    requestAnimationFrame(tick);
+  })();
 }
 
 // ── Crush ─────────────────────────────────────────────────────────────────────

@@ -1,11 +1,12 @@
-import { initScene, render, getScene, mpToWorld, updateCamera } from './scene.js';
+import * as THREE from 'three';
+import { initScene, render, getScene, mpToWorld, updateCamera, BLOOM_LAYER } from './scene.js';
 import { initHands, detectHands, setOnGesture, getHandGrowingState, getHandInfo } from './hands.js';
 import * as hands from './hands.js';
 import { initStarfield, updateStarfield, crushImpulse, rotateImpulse } from './starfield.js';
 import { createThread, updateThreads, activeThreads, crushThreads, createPreviewThread, updatePreviewThread, removePreviewThread, findClosestEndpoint, getEndpointPos, setEndpointPos, flashWeld, checkAndFlashTriangle } from './threads.js';
 // import { initSolly, updateSolly, energizeSolly, setOnSollyTouch } from './solly.js';
 import { initAudio, resumeAudio, playGestureSound } from './audio.js';
-import { initNebula, updateNebula, crushShards } from './nebula.js';
+import { initNebula, updateNebula, crushShards, panels, explodePanel } from './nebula.js';
 import { initHud, setGestureHint, updateThreadCount, drawSkeleton } from './hud.js';
 
 const videoEl = document.getElementById('webcam');
@@ -81,6 +82,8 @@ function _handleGesture(evt) {
 
 const previewLines = [null, null];
 const grabs = [null, null]; // { thread, which: 'start'|'end', line }
+const marbles = [];
+const marbleCharges = [null, null]; // { mesh, buf: Vector3[] }
 
 const GRAB_RADIUS = 1.3;
 const GRAB_PINCH  = 0.28;
@@ -128,6 +131,43 @@ function _releaseGrab(hi, thumbWorld) {
   }
 }
 
+function _mkMarble() {
+  const geo = new THREE.SphereGeometry(0.11, 10, 8);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.layers.enable(BLOOM_LAYER);
+  scene.add(mesh);
+  return { geo, mat, mesh };
+}
+
+function _fireMarble(pos, vel) {
+  const m = _mkMarble();
+  m.mesh.position.copy(pos);
+  marbles.push({ ...m, vel, born: performance.now() });
+}
+
+function _updateMarbles() {
+  for (let i = marbles.length - 1; i >= 0; i--) {
+    const m = marbles[i];
+    if (performance.now() - m.born > 5000) {
+      scene.remove(m.mesh); m.geo.dispose(); m.mat.dispose();
+      marbles.splice(i, 1); continue;
+    }
+    m.mesh.position.x += m.vel.x;
+    m.mesh.position.y += m.vel.y;
+    m.mesh.position.z += m.vel.z;
+    for (let p = panels.length - 1; p >= 0; p--) {
+      if (m.mesh.position.distanceTo(panels[p].position) < 2.8) {
+        explodePanel(panels[p], scene);
+        playGestureSound('energy');
+        scene.remove(m.mesh); m.geo.dispose(); m.mat.dispose();
+        marbles.splice(i, 1);
+        break;
+      }
+    }
+  }
+}
+
 let lastHint = null;
 
 function _loop(time) {
@@ -163,9 +203,36 @@ function _loop(time) {
     } else if (pinching) {
       const hit = findClosestEndpoint(thumbWorld, GRAB_RADIUS);
       if (hit) {
-        // Kill any active preview before starting grab
+        // Endpoint grab — clear any marble charge first
+        if (marbleCharges[hi]) {
+          const c = marbleCharges[hi]; marbleCharges[hi] = null;
+          scene.remove(c.mesh); c.geo.dispose(); c.mat.dispose();
+        }
         if (previewLines[hi]) { removePreviewThread(previewLines[hi], scene); previewLines[hi] = null; }
         _startGrab(hi, hit, thumbWorld);
+      } else {
+        // No endpoint nearby — charge a marble
+        const midX = (info.thumbMp.x + info.tipsMp[0].x) * 0.5;
+        const midY = (info.thumbMp.y + info.tipsMp[0].y) * 0.5;
+        const midWorld = mpToWorld(midX, midY);
+        if (!marbleCharges[hi]) marbleCharges[hi] = { ...(_mkMarble()), buf: [] };
+        marbleCharges[hi].mesh.position.copy(midWorld);
+        marbleCharges[hi].buf.push(midWorld.clone());
+        if (marbleCharges[hi].buf.length > 8) marbleCharges[hi].buf.shift();
+      }
+    } else if (marbleCharges[hi]) {
+      // Release — compute flick velocity and shoot
+      const charge = marbleCharges[hi];
+      marbleCharges[hi] = null;
+      scene.remove(charge.mesh); charge.geo.dispose(); charge.mat.dispose();
+      const buf = charge.buf;
+      if (buf.length >= 3) {
+        const raw = buf[buf.length - 1].clone().sub(buf[0]);
+        if (raw.length() > 0.035) {
+          raw.normalize().multiplyScalar(0.19);
+          raw.z -= 0.07; // bias forward into the scene
+          _fireMarble(buf[buf.length - 1], raw);
+        }
       }
     }
 
@@ -189,6 +256,7 @@ function _loop(time) {
   updateStarfield(time, activeThreads, indexTips);
   updateNebula(time, indexTips);
   updateThreads(time);
+  _updateMarbles();
   updateThreadCount(activeThreads.length);
 
   const handInfos = [getHandInfo(0), getHandInfo(1)];
