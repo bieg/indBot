@@ -83,6 +83,7 @@ function _handleGesture(evt) {
 const previewLines = [null, null];
 const grabs = [null, null]; // { thread, which: 'start'|'end', line }
 const panelGrabs = [null, null]; // solid panel being dragged
+const panelGrabReleaseFrames = [0, 0]; // debounce release
 const marbles = [];
 const marbleCharges = [null, null]; // { mesh, buf: Vector3[] }
 
@@ -90,8 +91,9 @@ const GRAB_RADIUS = 1.3;
 const GRAB_PINCH  = 0.28;
 const GRAB_OPEN   = 0.45;
 const WELD_RADIUS = 0.65;
-const IM_GRAB  = 0.35;  // index+middle together → panel drag start
-const IM_OPEN  = 0.55;  // index+middle apart   → panel drag release
+const IM_GRAB          = 0.35;  // index+middle together → panel drag start
+const IM_OPEN          = 0.55;  // index+middle apart   → panel drag release
+const IM_RELEASE_FRAMES = 8;    // consecutive frames needed to confirm release
 
 function _startGrab(hi, hit, thumbWorld) {
   const { thread, which } = hit;
@@ -225,7 +227,7 @@ function _loop(time) {
 
     if (!info.present || info.orienting) {
       if (grabs[hi]) _releaseGrab(hi, null);
-      if (panelGrabs[hi]) panelGrabs[hi] = null;
+      if (panelGrabs[hi]) { panelGrabs[hi] = null; panelGrabReleaseFrames[hi] = 0; }
       if (previewLines[hi]) { removePreviewThread(previewLines[hi], scene); previewLines[hi] = null; }
       continue;
     }
@@ -246,8 +248,13 @@ function _loop(time) {
     // ── Panel drag with index+middle (takes priority over everything) ──
     if (panelGrabs[hi]) {
       if (info.indexMiddleRatio > IM_OPEN) {
-        panelGrabs[hi] = null;
+        panelGrabReleaseFrames[hi]++;
+        if (panelGrabReleaseFrames[hi] >= IM_RELEASE_FRAMES) {
+          panelGrabs[hi] = null;
+          panelGrabReleaseFrames[hi] = 0;
+        }
       } else {
+        panelGrabReleaseFrames[hi] = 0;
         // Cast ray through finger midpoint and intersect with panel's Z plane
         const ndcX = (1 - imMidX) * 2 - 1;
         const ndcY = -(imMidY * 2 - 1);
