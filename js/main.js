@@ -65,11 +65,7 @@ async function _start() {
 function _handleGesture(evt) {
   playGestureSound(evt.type);
 
-  if (evt.type === 'crush') {
-    setGestureHint('crush', 'crush');
-    crushThreads(evt.originPoint);
-    crushShards(evt.originPoint);
-  } else if (evt.type === 'rotate') {
+  if (evt.type === 'rotate') {
     setGestureHint('rotate', 'rotate');
     rotateImpulse(evt.originPoint, evt.direction);
   } else {

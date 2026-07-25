@@ -134,17 +134,6 @@ export function detectHands(videoEl) {
       });
     }
 
-    const avgTipToPalm = (
-      _dist(sm[4], sm[0]) + _dist(sm[8], sm[0]) + _dist(sm[12], sm[0]) +
-      _dist(sm[16], sm[0]) + _dist(sm[20], sm[0])
-    ) / (5 * Math.max(ref, 0.01));
-
-    _updateFistState(hs.fist, avgTipToPalm, () => {
-      if (!onGesture) return;
-      const palm = mpToWorld(sm[0].x, sm[0].y);
-      onGesture({ type: 'crush', handIndex: hi, originPoint: palm, targetPoint: palm });
-    });
-
     _updateWristRotation(hs, sm, hi);
   }
 }
