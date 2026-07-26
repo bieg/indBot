@@ -240,5 +240,6 @@ export function getHandInfo(handIndex) {
     thumbMp: { x: sm[4].x, y: sm[4].y },
     tipsMp: TIPS.map(tip => ({ x: sm[tip].x, y: sm[tip].y })),
     palmMp: { x: sm[0].x, y: sm[0].y },
+    rawIndexTip: latestResult.landmarks[handIndex]?.[8] ?? { x: sm[8].x, y: sm[8].y },
   };
 }

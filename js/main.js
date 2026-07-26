@@ -173,33 +173,35 @@ function _updateMarbles() {
   }
 }
 
-// ── Screen-space panel tap ─────────────────────────────────────────────────────
-// Project each panel's world centre to NDC and compare to fingertip NDC.
-// Robust regardless of panel rotation (raycasting fails on edge-on panels).
+// ── Panel tap via raycasting ───────────────────────────────────────────────────
+// Force-update world matrices before each raycast so moving panels are correct.
 const _prevRayHit = new Set();
 const _projV = new THREE.Vector3();
 const _dragRay = new THREE.Raycaster();
-const TAP_NDC_RADIUS = 0.20; // ~10% of screen half-width
 
 function _updatePanelTaps(handInfos) {
   const camera = getCamera();
   const nowHit = new Set();
 
+  // Force current world matrices (panels move each frame; render hasn't run yet)
+  const fillMeshes = panels.map(g => g.userData.fill).filter(Boolean);
+  fillMeshes.forEach(m => m.updateWorldMatrix(true, false));
+
   for (let i = 0; i < handInfos.length; i++) {
     const info = handInfos[i];
     if (!info.present || info.orienting) continue;
     if (panelGrabs[i] !== null) continue; // actively dragging — skip tap
-    const ndcX = (1 - info.tipsMp[0].x) * 2 - 1;
-    const ndcY = -(info.tipsMp[0].y * 2 - 1);
 
-    for (const g of panels) {
-      _projV.copy(g.position).project(camera);
-      const dx = _projV.x - ndcX;
-      const dy = _projV.y - ndcY;
-      if (dx * dx + dy * dy < TAP_NDC_RADIUS * TAP_NDC_RADIUS) {
-        nowHit.add(g);
-        if (!_prevRayHit.has(g)) tapPanel(g);
-      }
+    // Raw (unsmoothed) landmark for zero-lag tap response
+    const ndcX = (1 - info.rawIndexTip.x) * 2 - 1;
+    const ndcY = -(info.rawIndexTip.y * 2 - 1);
+    _dragRay.setFromCamera({ x: ndcX, y: ndcY }, camera);
+
+    const hits = _dragRay.intersectObjects(fillMeshes);
+    if (hits.length > 0) {
+      const panel = hits[0].object.parent;
+      nowHit.add(panel);
+      if (!_prevRayHit.has(panel)) tapPanel(panel);
     }
   }
 
