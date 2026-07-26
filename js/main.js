@@ -321,8 +321,8 @@ function _loop(time) {
     }
 
     // Draw preview only when not in grab mode and fingers are separating
-    if (!grabs[hi]) {
-      if (info.ratios[0] > 0.28) {
+    if (!grabs[hi] && !panelGrabs[hi]) {
+      if (info.ratios[0] > 0.15) {
         const idx = mpToWorld(info.tipsMp[0].x, info.tipsMp[0].y);
         if (!previewLines[hi]) previewLines[hi] = createPreviewThread(scene);
         updatePreviewThread(previewLines[hi], thumbWorld, idx);
