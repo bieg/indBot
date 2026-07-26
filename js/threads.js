@@ -127,8 +127,9 @@ export function createPreviewThread(scene) {
   const pts = new Float32Array(6);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
-  const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45 });
+  const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92 });
   const line = new THREE.Line(geo, mat);
+  line.layers.enable(BLOOM_LAYER);
   scene.add(line);
   return line;
 }
