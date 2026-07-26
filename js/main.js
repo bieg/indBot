@@ -185,9 +185,10 @@ function _updatePanelTaps(handInfos) {
   const camera = getCamera();
   const nowHit = new Set();
 
-  for (const info of handInfos) {
+  for (let i = 0; i < handInfos.length; i++) {
+    const info = handInfos[i];
     if (!info.present || info.orienting) continue;
-    if (info.indexMiddleRatio < IM_GRAB) continue; // drag mode — skip tap
+    if (panelGrabs[i] !== null) continue; // actively dragging — skip tap
     const ndcX = (1 - info.tipsMp[0].x) * 2 - 1;
     const ndcY = -(info.tipsMp[0].y * 2 - 1);
 
