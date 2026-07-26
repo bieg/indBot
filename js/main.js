@@ -179,7 +179,7 @@ function _updateMarbles() {
 const _prevRayHit = new Set();
 const _projV = new THREE.Vector3();
 const _dragRay = new THREE.Raycaster();
-const TAP_NDC_RADIUS = 0.20; // ~10% of screen half-width
+const TAP_NDC_RADIUS = 0.42; // large enough to cover panel edges, not just centre
 
 function _updatePanelTaps(handInfos) {
   const camera = getCamera();
@@ -189,8 +189,9 @@ function _updatePanelTaps(handInfos) {
     const info = handInfos[i];
     if (!info.present || info.orienting) continue;
     if (panelGrabs[i] !== null) continue; // actively dragging — skip tap
-    const ndcX = (1 - info.tipsMp[0].x) * 2 - 1;
-    const ndcY = -(info.tipsMp[0].y * 2 - 1);
+    // Use raw (unsmoothed) landmark for tap — no lag
+    const ndcX = (1 - info.rawIndexTip.x) * 2 - 1;
+    const ndcY = -(info.rawIndexTip.y * 2 - 1);
 
     for (const g of panels) {
       _projV.copy(g.position).project(camera);
