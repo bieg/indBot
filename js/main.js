@@ -197,9 +197,12 @@ function _updatePanelTaps(handInfos) {
     const ndcY = -(info.rawIndexTip.y * 2 - 1);
     _dragRay.setFromCamera({ x: ndcX, y: ndcY }, camera);
 
+    const inDragPose = info.indexMiddleRatio < IM_GRAB;
     const hits = _dragRay.intersectObjects(fillMeshes);
     if (hits.length > 0) {
       const panel = hits[0].object.parent;
+      // Never tap a solid panel while in drag pose — would accidentally deselect it
+      if (inDragPose && panel.userData.tapState === 2) continue;
       nowHit.add(panel);
       if (!_prevRayHit.has(panel)) tapPanel(panel);
     }
