@@ -1,0 +1,153 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Courier New', monospace;
+}
+
+#webcam {
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  opacity: 0.22;
+  transform: scaleX(-1);
+  z-index: 0;
+}
+
+#three-canvas {
+  position: fixed; inset: 0;
+  z-index: 1;
+}
+
+#skeleton-canvas {
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+#hud {
+  position: fixed;
+  top: 16px; left: 16px;
+  z-index: 3;
+  color: rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+  user-select: none;
+}
+
+#gesture-indicator {
+  font-size: 13px;
+  margin-bottom: 5px;
+  height: 18px;
+  transition: opacity 0.3s;
+}
+
+#gesture-indicator.flash {
+  opacity: 1;
+  color: #fff;
+}
+
+#thread-count {
+  font-size: 11px;
+  opacity: 0.5;
+}
+
+#start-overlay {
+  position: fixed; inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+#start-overlay h1 {
+  font-size: 28px;
+  letter-spacing: 0.12em;
+  margin-bottom: 10px;
+  font-weight: 300;
+}
+
+#start-overlay p {
+  font-size: 13px;
+  opacity: 0.6;
+  margin-bottom: 32px;
+  letter-spacing: 0.04em;
+}
+
+#start-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 215, 106, 0.6);
+  color: rgba(255, 215, 106, 0.9);
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  padding: 10px 28px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+#start-btn:hover {
+  background: rgba(255, 215, 106, 0.1);
+  border-color: rgba(255, 215, 106, 1);
+}
+
+#mood-canvas {
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+
+#mood-word {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) scale(1);
+  z-index: 5;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: clamp(28px, 5vw, 56px);
+  font-weight: 100;
+  letter-spacing: 0.22em;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  text-shadow: 0 0 30px currentColor;
+  white-space: nowrap;
+}
+
+#mic-indicator {
+  position: fixed;
+  bottom: 16px;
+  right: 18px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+#mic-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+#error-msg {
+  position: fixed; inset: 0;
+  z-index: 11;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.9);
+  color: rgba(255,80,80,0.9);
+  font-size: 14px;
+  text-align: center;
+  padding: 20px;
+}

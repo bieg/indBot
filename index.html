@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Threads of Reality</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+
+  <video id="webcam" autoplay playsinline muted></video>
+  <canvas id="three-canvas"></canvas>
+  <canvas id="skeleton-canvas"></canvas>
+  <canvas id="mood-canvas"></canvas>
+
+  <div id="mood-word"></div>
+
+  <div id="hud">
+    <div id="gesture-indicator"></div>
+    <div id="thread-count">Threads: 0</div>
+  </div>
+
+  <div id="mic-indicator" title="microphone">
+    <div id="mic-dot"></div>
+  </div>
+
+  <div id="start-overlay">
+    <h1>Threads of Reality</h1>
+    <p>Pull threads between your fingers. Weave constellations. Crush what you've built.</p>
+    <button id="start-btn">Allow Camera &amp; Start</button>
+  </div>
+
+  <div id="error-msg"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
