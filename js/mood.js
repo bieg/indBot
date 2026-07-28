@@ -1,4 +1,4 @@
-let _canvas, _ctx, _wordEl, _micDot, _particles = [], _vigAlpha = 0, _vigMode = null;
+let _canvas, _ctx, _micDot, _particles = [], _vigAlpha = 0, _vigMode = null;
 
 class Particle {
   constructor(mood) {
@@ -19,7 +19,6 @@ class Particle {
 export function initMood() {
   _canvas = document.getElementById('mood-canvas');
   _ctx = _canvas.getContext('2d');
-  _wordEl = document.getElementById('mood-word');
   _micDot = document.getElementById('mic-dot');
   const resize = () => { _canvas.width = window.innerWidth; _canvas.height = window.innerHeight; };
   resize(); window.addEventListener('resize', resize);
@@ -31,14 +30,14 @@ export function setMicActive(on) {
   _micDot.style.boxShadow  = on ? '0 0 6px 2px rgba(255,60,60,0.6)' : 'none';
 }
 
-export function triggerDark(word) {
+export function triggerDark() {
   for (let i = 0; i < 50; i++) _particles.push(new Particle('dark'));
-  _vigAlpha = 0.65; _vigMode = 'dark'; _flash(word, '#ff3322', 'dark');
+  _vigAlpha = 0.65; _vigMode = 'dark';
 }
 
-export function triggerLight(word) {
+export function triggerLight() {
   for (let i = 0; i < 60; i++) setTimeout(() => _particles.push(new Particle('light')), i * 35);
-  _vigAlpha = 0.25; _vigMode = 'light'; _flash(word, '#ffd76a', 'light');
+  _vigAlpha = 0.25; _vigMode = 'light';
 }
 
 export function updateMood() {
@@ -81,16 +80,3 @@ export function updateMood() {
   }
 }
 
-function _flash(word, color, mood) {
-  if (!_wordEl) return;
-  _wordEl.textContent = word.toUpperCase();
-  _wordEl.style.color = color;
-  _wordEl.style.fontWeight = mood === 'dark' ? '900' : '100';
-  _wordEl.style.letterSpacing = mood === 'dark' ? '0.08em' : '0.28em';
-  _wordEl.style.opacity = '1';
-  _wordEl.style.transform = 'translateX(-50%) scale(1.08)';
-  clearTimeout(_wordEl._t);
-  _wordEl._t = setTimeout(() => {
-    _wordEl.style.opacity = '0'; _wordEl.style.transform = 'translateX(-50%) scale(1)';
-  }, 900);
-}

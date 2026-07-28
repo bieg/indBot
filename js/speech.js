@@ -102,11 +102,14 @@ const LIGHT_WORDS = new Set([
   'eenheid','harmonie','balans','zalig','tevreden','floreren','gedijen',
   'gezelligheid','plezier','pret','genieten','heerlijk','schitterend',
   'wauw','ja','joepie','hoera','yes','super','top','tof',
-  // EN — uitroepen
-  'wow','woah','whoa','omg','yay','hurray','hooray','woohoo','yasss','yes',
+  // EN — uitroepen + hippie
+  'wow','woah','whoa','omg','yay','hurray','hooray','woohoo','yasss',
   'nice','sweet','lit','fire','awesome','dope','sick','rad','insane','unreal',
+  'hippie','groovy','bliss','blissful','euphoria','euphoric','paradise',
+  'heaven','heavenly','angel','divine','blessed','grateful','thankful',
   // NL — uitroepen
-  'jeetje','wauwzers','heerlijk','zalig','tof','te gek','magnifiek','goddelijk',
+  'jeetje','wauwzers','heerlijk','zalig','tof','te','magnifiek','goddelijk',
+  'paradijs','hemels','engel','dankbaar','dankbaarheid','gezegende',
 ]);
 
 let _onMood = null;

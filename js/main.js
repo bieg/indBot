@@ -94,9 +94,9 @@ async function _start() {
   _handsReady.then(() => setOnGesture(_handleGesture)).catch(console.error);
 }
 
-function _handleMood({ mood, word }) {
-  if (mood === 'dark') { triggerDark(word); darkMoodBurst(); starMoodBurst('dark'); }
-  else { triggerLight(word); lightMoodDrift(); starMoodBurst('light'); }
+function _handleMood({ mood }) {
+  if (mood === 'dark') { triggerDark(); darkMoodBurst(); starMoodBurst('dark'); }
+  else { triggerLight(); lightMoodDrift(); starMoodBurst('light'); }
 }
 
 function _handleGesture(evt) {
