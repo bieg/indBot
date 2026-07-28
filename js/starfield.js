@@ -15,6 +15,15 @@ const phases = new Float32Array(COUNT);
 let geometry, points;
 let geometry2, points2;
 
+// Star color animation state
+const _C_NORMAL1 = new THREE.Color(0xddeeff);
+const _C_NORMAL2 = new THREE.Color(0xfffaf0);
+const _C_DARK1   = new THREE.Color(0x660011); // deep crimson
+const _C_DARK2   = new THREE.Color(0x330044); // deep purple
+const _C_LIGHT1  = new THREE.Color(0xffffff); // pure white flash
+const _C_LIGHT2  = new THREE.Color(0xff8800); // warm orange
+let _colorAnim = null;
+
 // Inline GLSL — draws a soft radial glow disc using gl_PointCoord.
 // Much more reliable than canvas textures (no asset loading, no alphaTest quirks).
 const _VERT = `
@@ -153,6 +162,8 @@ export function updateStarfield(time, activeThreads, indexTips = []) {
 
   geometry.attributes.position.needsUpdate = true;
   if (geometry2) geometry2.attributes.position.needsUpdate = true;
+
+  _tickColorAnim();
 }
 
 export function rotateImpulse(originWorld, direction = 1) {
@@ -206,6 +217,37 @@ export function lightMoodDrift() {
     const i3 = i * 3;
     velocities[i3]   += 0.012 * (0.4 + Math.random() * 0.6);
     velocities[i3+1] += 0.007 * (0.4 + Math.random() * 0.6);
+  }
+}
+
+// Flash all stars to mood colors, then slowly fade back to space
+export function starMoodBurst(type) {
+  if (!points || !points2) return;
+  _colorAnim = {
+    type,
+    c1from: points.material.uniforms.uColor.value.clone(),
+    c2from: points2.material.uniforms.uColor.value.clone(),
+    c1to:   type === 'dark' ? _C_DARK1  : _C_LIGHT1,
+    c2to:   type === 'dark' ? _C_DARK2  : _C_LIGHT2,
+    startMs: performance.now(),
+    inMs:    type === 'dark' ? 320  : 150,
+    outMs:   type === 'dark' ? 3200 : 2000,
+  };
+}
+
+function _tickColorAnim() {
+  if (!_colorAnim || !points || !points2) return;
+  const { c1from, c2from, c1to, c2to, startMs, inMs, outMs } = _colorAnim;
+  const elapsed = performance.now() - startMs;
+  if (elapsed < inMs) {
+    const t = elapsed / inMs;
+    points.material.uniforms.uColor.value.lerpColors(c1from, c1to, t);
+    points2.material.uniforms.uColor.value.lerpColors(c2from, c2to, t);
+  } else {
+    const t = Math.min((elapsed - inMs) / outMs, 1);
+    points.material.uniforms.uColor.value.lerpColors(c1to, _C_NORMAL1, t);
+    points2.material.uniforms.uColor.value.lerpColors(c2to, _C_NORMAL2, t);
+    if (t >= 1) _colorAnim = null;
   }
 }
 

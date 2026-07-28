@@ -33,12 +33,12 @@ export function setMicActive(on) {
 
 export function triggerDark(word) {
   for (let i = 0; i < 50; i++) _particles.push(new Particle('dark'));
-  _vigAlpha = 0.65; _vigMode = 'dark'; _flash(word, '#ff3322');
+  _vigAlpha = 0.65; _vigMode = 'dark'; _flash(word, '#ff3322', 'dark');
 }
 
 export function triggerLight(word) {
   for (let i = 0; i < 60; i++) setTimeout(() => _particles.push(new Particle('light')), i * 35);
-  _vigAlpha = 0.25; _vigMode = 'light'; _flash(word, '#ffd76a');
+  _vigAlpha = 0.25; _vigMode = 'light'; _flash(word, '#ffd76a', 'light');
 }
 
 export function updateMood() {
@@ -81,10 +81,14 @@ export function updateMood() {
   }
 }
 
-function _flash(word, color) {
+function _flash(word, color, mood) {
   if (!_wordEl) return;
-  _wordEl.textContent = word.toUpperCase(); _wordEl.style.color = color;
-  _wordEl.style.opacity = '1'; _wordEl.style.transform = 'translateX(-50%) scale(1.08)';
+  _wordEl.textContent = word.toUpperCase();
+  _wordEl.style.color = color;
+  _wordEl.style.fontWeight = mood === 'dark' ? '900' : '100';
+  _wordEl.style.letterSpacing = mood === 'dark' ? '0.08em' : '0.28em';
+  _wordEl.style.opacity = '1';
+  _wordEl.style.transform = 'translateX(-50%) scale(1.08)';
   clearTimeout(_wordEl._t);
   _wordEl._t = setTimeout(() => {
     _wordEl.style.opacity = '0'; _wordEl.style.transform = 'translateX(-50%) scale(1)';

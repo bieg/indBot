@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { initScene, render, getScene, getCamera, mpToWorld, updateCamera, BLOOM_LAYER } from './scene.js';
 import { initHands, detectHands, setOnGesture, getHandGrowingState, getHandInfo } from './hands.js';
 import * as hands from './hands.js';
-import { initStarfield, updateStarfield, crushImpulse, rotateImpulse, darkMoodBurst, lightMoodDrift } from './starfield.js';
+import { initStarfield, updateStarfield, crushImpulse, rotateImpulse, darkMoodBurst, lightMoodDrift, starMoodBurst } from './starfield.js';
 import { initSpeech, setOnMood } from './speech.js';
 import { initMood, triggerDark, triggerLight, updateMood, setMicActive } from './mood.js';
 import { createThread, updateThreads, activeThreads, crushThreads, createPreviewThread, updatePreviewThread, removePreviewThread, findClosestEndpoint, getEndpointPos, setEndpointPos, flashWeld, checkAndFlashTriangle } from './threads.js';
@@ -74,8 +74,8 @@ async function _start() {
 }
 
 function _handleMood({ mood, word }) {
-  if (mood === 'dark') { triggerDark(word); darkMoodBurst(); }
-  else { triggerLight(word); lightMoodDrift(); }
+  if (mood === 'dark') { triggerDark(word); darkMoodBurst(); starMoodBurst('dark'); }
+  else { triggerLight(word); lightMoodDrift(); starMoodBurst('light'); }
 }
 
 function _handleGesture(evt) {
