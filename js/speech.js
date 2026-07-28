@@ -62,7 +62,7 @@ function _makeInstance(SR, lang) {
     console.warn('[speech] fout (' + lang + '):', e.error);
   };
   r.onstart = () => console.log('[speech] gestart:', lang);
-  r.onend = () => { try { r.start(); } catch (_) {} };
+  r.onend = () => { setTimeout(() => { try { r.start(); } catch (_) {} }, 1000); };
   try { r.start(); } catch (err) { console.warn('[speech] start mislukt:', lang, err); }
 }
 

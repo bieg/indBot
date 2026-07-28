@@ -213,9 +213,9 @@ function _updateFistState(st, avgRatio, fire) {
 
 export function getHandGrowingState(handIndex) {
   const hs = handStates[handIndex];
-  if (!hs) return null;
+  if (!hs || !hs.fingers) return null;
   for (let fi = 0; fi < FINGERS.length; fi++) {
-    if (hs.fingers[fi].state === 'growing') return FINGERS[fi];
+    if (hs.fingers[fi] && hs.fingers[fi].state === 'growing') return FINGERS[fi];
   }
   if (hs.fist && hs.fist.state === 'growing') return 'crush';
   return null;
