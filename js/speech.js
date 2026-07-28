@@ -7,8 +7,7 @@ const DARK_WORDS = new Set([
   'haunted','hopeless','helpless','shattered','bleak','dread','horror',
   'despair','misery','anguish','torment','silence','ruin','trapped','sink',
   'drown','falling','collapse','disturbed','boom','crash','break',
-  // NL
-  'donker','duisternis','sterven','dood','storm','stormig','somber',
+  'donker','duisternis','sterven','dood','stormig','somber',
   'depressie','depressief','droevig','verdriet','gebroken','verloren',
   'alleen','eenzaam','pijn','leeg','leegte','schaduw','angst','haat','koud',
   'huilen','tranen','gevallen','zwaar','woede','vernietigen','branden',
@@ -26,10 +25,9 @@ const LIGHT_WORDS = new Set([
   'morning','sky','heart','laugh','laughter','grace','magic','wonder',
   'wonderful','amazing','walk','breathe','life','live','touch','sparkle',
   'shine','soft','soar','celebrate','good','great','better','positive',
-  // NL
-  'zonneschijn','zon','zonnig','licht','blij','blijheid','vreugde',
+  'zonneschijn','zon','zonnig','blij','blijheid','vreugde',
   'vrienden','vriend','vriendin','familie','liefde','hoop','hoopvol',
-  'glimlach','helder','warm','warmte','bloem','mooi','vrede','vrij',
+  'glimlach','helder','warmte','bloem','mooi','vrede','vrij',
   'vrijheid','dansen','vliegen','gloeien','goud','zoet','levend','samen',
   'droom','dromen','zweven','zacht','zingen','vogels','bijen','lente',
   'ochtend','hemel','hart','lachen','gelach','magisch','magie','geweldig',
@@ -45,43 +43,61 @@ export function setOnMood(fn) { _onMood = fn; }
 export function initSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
-    console.warn('[speech] Web Speech API niet beschikbaar. Gebruik Chrome of Edge voor mic-detectie.');
+    console.warn('[speech] niet beschikbaar — gebruik Chrome/Edge');
     return false;
   }
-  _makeInstance(SR, 'en-US');
-  _makeInstance(SR, 'nl-NL');
+  _start(SR, 'en-US');
+  _start(SR, 'nl-NL');
   return true;
 }
 
-function _makeInstance(SR, lang) {
-  const r = new SR();
-  r.continuous = true; r.interimResults = true; r.lang = lang; r.maxAlternatives = 1;
-  r.onresult = _onResult;
-  r.onerror = (e) => {
-    if (e.error === 'no-speech' || e.error === 'aborted') return;
-    console.warn('[speech] fout (' + lang + '):', e.error);
-  };
-  r.onstart = () => console.log('[speech] gestart:', lang);
-  r.onend = () => { setTimeout(() => { try { r.start(); } catch (_) {} }, 1000); };
-  try { r.start(); } catch (err) { console.warn('[speech] start mislukt:', lang, err); }
+function _start(SR, lang) {
+  let delay = 2000;
+  let stopped = false;
+
+  function run() {
+    if (stopped) return;
+    const r = new SR();
+    r.continuous = true;
+    r.interimResults = true;
+    r.lang = lang;
+    r.maxAlternatives = 1;
+    r.onresult = _onResult;
+    r.onerror = (e) => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') {
+        console.warn('[speech] gestopt (' + lang + '):', e.error);
+        stopped = true;
+        return;
+      }
+      if (e.error !== 'no-speech' && e.error !== 'aborted') {
+        console.warn('[speech] fout (' + lang + '):', e.error);
+        delay = Math.min(delay * 2, 30000);
+      }
+    };
+    r.onend = () => {
+      if (!stopped) setTimeout(run, delay);
+    };
+    try { r.start(); delay = 2000; } catch (_) {}
+  }
+
+  run();
 }
 
 function _onResult(event) {
   const now = performance.now();
   for (let i = event.resultIndex; i < event.results.length; i++) {
     const transcript = event.results[i][0].transcript.toLowerCase();
-    const isFinal = event.results[i].isFinal;
-    if (isFinal) console.log('[speech] gehoord:', transcript);
+    if (event.results[i].isFinal) console.log('[speech]', transcript);
     const words = transcript.split(/\s+/);
     for (const raw of words) {
       const w = raw.replace(/[^a-z]/g, '');
       if (!w) continue;
       if (DARK_WORDS.has(w) && now - _lastDark > COOLDOWN) {
-        console.log('[speech] DONKER woord:', w);
+        console.log('[speech] DONKER:', w);
         _lastDark = now; if (_onMood) _onMood({ mood: 'dark', word: w }); return;
       }
       if (LIGHT_WORDS.has(w) && now - _lastLight > COOLDOWN) {
-        console.log('[speech] LICHT woord:', w);
+        console.log('[speech] LICHT:', w);
         _lastLight = now; if (_onMood) _onMood({ mood: 'light', word: w }); return;
       }
     }
