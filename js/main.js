@@ -35,17 +35,15 @@ function _preLoop(time) {
 }
 _preLoop.running = true;
 
-startBtn.addEventListener('click', async () => {
+startBtn.addEventListener('click', () => {
   startBtn.disabled = true;
   startBtn.textContent = 'loading…';
-  try {
-    await _start();
-  } catch (err) {
+  _start().catch(err => {
     console.error(err);
     errorMsg.textContent = `Error: ${err.message}`;
     errorMsg.style.display = 'flex';
     startOverlay.style.display = 'none';
-  }
+  });
 });
 
 async function _start() {
