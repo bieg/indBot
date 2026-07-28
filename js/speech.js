@@ -12,19 +12,21 @@ const DARK_WORDS = new Set([
   'haunted','hopeless','helpless','shattered','bleak','dread','horror',
   'despair','misery','anguish','torment','silence','ruin','trapped','sink',
   'drown','falling','collapse','disturbed','boom','crash','break',
+  // EN — vloeken / uitroepen / frustratie
+  'damn','dammit','damnit','hell','crap','shit','fuck','fucked','ugh','argh',
+  'aargh','ugh','grrr','oof','ouch','yikes','sucks','suck','awful','terrible',
+  'horrible','dreadful','disgusting','disgusted','disgust','vile','rotten',
+  'toxic','poison','poisoned','corrupt','evil','wicked','cruel','brutal',
   // EN — pessimisme / kritiek
   'pessimistic','pessimism','critical','criticize','negative','negativity',
-  'gloomy','miserable','terrible','awful','horrible','dreadful','disgusting',
-  'disgusted','disgust','vile','rotten','toxic','poison','poisoned',
-  'corrupt','evil','wicked','cruel','brutal','violent','violence',
-  'furious','angry','anger','upset','bitter','resentment','jealous',
-  'jealousy','envy','envy','blame','shame','guilty','guilt','worthless',
+  'gloomy','miserable','furious','angry','anger','upset','bitter','resentment',
+  'jealous','jealousy','envy','blame','shame','guilty','guilt','worthless',
   'useless','pathetic','failure','failed','fail','wrong','bad','worst','worse',
   'ugly','abuse','abused','suffer','suffering','grief','mourn','mourning',
   'weep','weeping','anxious','anxiety','panic','terror','terrified','scared',
   'paranoid','shameful','loser','disgrace','curse','cursed','damned',
   'condemned','frozen','stuck','trapped','suffocate','suffocating',
-  'hopeless','meaningless','pointless','empty','hollow','void',
+  'hopeless','meaningless','pointless','empty','hollow','void','violent','violence',
   'crisis','disaster','catastrophe','apocalypse','destroy','destruction',
   // NL — emotie
   'donker','duisternis','sterven','dood','stormig','somber',
@@ -47,6 +49,10 @@ const DARK_WORDS = new Set([
   'crisis','ramp','catastrofe','chaos','stuk','kapot','brak',
   'duister','duisternis','geen zin','zinloos','nutteloos','hopeloos',
   'neerslachtig','bedrukt','terneergeslagen','mistroostig','zwartgallig',
+  // NL — vloeken / uitroepen
+  'godverdomme','godver','verdorie','verdomme','klote','kut','shit','damn',
+  'dammit','balen','stom','rotzooi','klootzak','tering','kanker','potverdorie',
+  'potver','lul','ugh','argh','auw','bah','foei','wat een rotdag',
 ]);
 
 // ── LICHT / POSITIEF ──────────────────────────────────────────────────────────
@@ -95,28 +101,21 @@ const LIGHT_WORDS = new Set([
   'teder','zorgzaam','vriendelijk','gul','medelevend','verbinding',
   'eenheid','harmonie','balans','zalig','tevreden','floreren','gedijen',
   'gezelligheid','plezier','pret','genieten','heerlijk','schitterend',
-  'wauw','ja','jij','joepie','hoera','yes','super','top','tof',
+  'wauw','ja','joepie','hoera','yes','super','top','tof',
+  // EN — uitroepen
+  'wow','woah','whoa','omg','yay','hurray','hooray','woohoo','yasss','yes',
+  'nice','sweet','lit','fire','awesome','dope','sick','rad','insane','unreal',
+  // NL — uitroepen
+  'jeetje','wauwzers','heerlijk','zalig','tof','te gek','magnifiek','goddelijk',
 ]);
 
 let _onMood = null;
+let _onHeard = null; // debug: called with every interim word Chrome picks up
 let _lastDark = 0, _lastLight = 0;
 const COOLDOWN = 2000;
 
 export function setOnMood(fn) { _onMood = fn; }
-
-// Manual trigger — type a word and call this (same logic as speech detection)
-export function testWord(raw) {
-  const w = raw.toLowerCase().replace(/[^a-zÀ-ɏ]/g, '');
-  if (!w || !_onMood) return false;
-  const now = performance.now();
-  if (DARK_WORDS.has(w) && now - _lastDark > COOLDOWN) {
-    console.log('[text] DONKER:', w); _lastDark = now; _onMood({ mood: 'dark', word: w }); return true;
-  }
-  if (LIGHT_WORDS.has(w) && now - _lastLight > COOLDOWN) {
-    console.log('[text] LICHT:', w); _lastLight = now; _onMood({ mood: 'light', word: w }); return true;
-  }
-  return false;
-}
+export function setOnHeard(fn) { _onHeard = fn; }
 
 export function initSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -164,8 +163,10 @@ function _start(SR, lang) {
 function _onResult(event) {
   const now = performance.now();
   for (let i = event.resultIndex; i < event.results.length; i++) {
-    const transcript = event.results[i][0].transcript.toLowerCase();
+    const transcript = event.results[i][0].transcript.toLowerCase().trim();
+    if (!transcript) continue;
     if (event.results[i].isFinal) console.log('[speech]', transcript);
+    if (_onHeard) _onHeard(transcript);
     const words = transcript.split(/\s+/);
     for (const raw of words) {
       const w = raw.replace(/[^a-z]/g, '');
