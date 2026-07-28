@@ -2,7 +2,6 @@ import * as THREE from 'three';
 
 const COUNT = 1500;
 const BOUNDS = 22;
-const BOUNDS_Z = 20;
 const MAX_SPEED = 0.04;
 const GRAVITY_STRENGTH = 0.0006;
 const GRAVITY_RADIUS = 3.0;
@@ -31,9 +30,8 @@ const _FRAG = `
   void main() {
     float d = length(gl_PointCoord - 0.5) * 2.0; // 0 centre → 1 edge
     if (d > 1.0) discard;
-    float g = pow(1.0 - d, 1.8);                  // soft glow
-    // alpha=1 so AdditiveBlending adds uColor*g directly (no g² dimming)
-    gl_FragColor = vec4(uColor * g, 1.0);
+    float g = pow(1.0 - d, 2.4);                  // soft power-law glow
+    gl_FragColor = vec4(uColor * g, g);
   }
 `;
 
@@ -56,24 +54,24 @@ export function initStarfield(scene) {
     const i3 = i * 3;
     positions[i3]     = (Math.random() - 0.5) * BOUNDS;
     positions[i3 + 1] = (Math.random() - 0.5) * BOUNDS;
-    positions[i3 + 2] = (Math.random() - 0.5) * BOUNDS_Z;
+    positions[i3 + 2] = (Math.random() - 0.5) * 8;
     velocities[i3]     = (Math.random() - 0.5) * 0.002;
     velocities[i3 + 1] = (Math.random() - 0.5) * 0.002;
-    velocities[i3 + 2] = (Math.random() - 0.5) * 0.0012;
+    velocities[i3 + 2] = 0;
     phases[i] = Math.random() * Math.PI * 2;
   }
 
   // main layer — 1500 small cool blue-white glowing dots
   geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  points = new THREE.Points(geometry, _starMat(10, 0xddeeff));
+  points = new THREE.Points(geometry, _starMat(4.5, 0xc8dcff));
   scene.add(points);
 
   // accent layer — 220 larger warm stars for depth (shared buffer view)
   const accentBuf = new Float32Array(positions.buffer, (COUNT - 220) * 3 * 4, 220 * 3);
   geometry2 = new THREE.BufferGeometry();
   geometry2.setAttribute('position', new THREE.BufferAttribute(accentBuf, 3));
-  points2 = new THREE.Points(geometry2, _starMat(22, 0xfffaf0));
+  points2 = new THREE.Points(geometry2, _starMat(9.0, 0xfff6e8));
   scene.add(points2);
 
   return points;
@@ -81,10 +79,7 @@ export function initStarfield(scene) {
 
 const _tmp = new THREE.Vector3();
 
-const TOUCH_RADIUS = 0.6;
-const TOUCH_IMPULSE = 0.06;
-
-export function updateStarfield(time, activeThreads, indexTips = []) {
+export function updateStarfield(time, activeThreads) {
   for (let i = 0; i < COUNT; i++) {
     const i3 = i * 3;
     const px = positions[i3], py = positions[i3 + 1], pz = positions[i3 + 2];
@@ -115,33 +110,18 @@ export function updateStarfield(time, activeThreads, indexTips = []) {
       }
     }
 
-    // wijsvinger aantikken → ster weg duwen
-    for (const tip of indexTips) {
-      const tx = tip.x - px, ty = tip.y - py;
-      const td = Math.sqrt(tx * tx + ty * ty);
-      if (td < TOUCH_RADIUS && td > 0.001) {
-        const impulse = TOUCH_IMPULSE / Math.max(td, 0.15);
-        velocities[i3]     -= (tx / td) * impulse;
-        velocities[i3 + 1] -= (ty / td) * impulse;
-      }
-    }
-
     velocities[i3]     *= 0.98;
     velocities[i3 + 1] *= 0.98;
-    velocities[i3 + 2] *= 0.99;
 
     const sinOffset = Math.sin(time * 0.0001 + phases[i]) * 0.001;
     positions[i3]     += velocities[i3]     + sinOffset;
     positions[i3 + 1] += velocities[i3 + 1] + sinOffset;
-    positions[i3 + 2] += velocities[i3 + 2];
 
-    const half = BOUNDS / 2, halfZ = BOUNDS_Z / 2;
-    if (positions[i3]     >  half)  positions[i3]     -= BOUNDS;
-    if (positions[i3]     < -half)  positions[i3]     += BOUNDS;
-    if (positions[i3 + 1] >  half)  positions[i3 + 1] -= BOUNDS;
-    if (positions[i3 + 1] < -half)  positions[i3 + 1] += BOUNDS;
-    if (positions[i3 + 2] >  halfZ) positions[i3 + 2] -= BOUNDS_Z;
-    if (positions[i3 + 2] < -halfZ) positions[i3 + 2] += BOUNDS_Z;
+    const half = BOUNDS / 2;
+    if (positions[i3]     >  half) positions[i3]     -= BOUNDS;
+    if (positions[i3]     < -half) positions[i3]     += BOUNDS;
+    if (positions[i3 + 1] >  half) positions[i3 + 1] -= BOUNDS;
+    if (positions[i3 + 1] < -half) positions[i3 + 1] += BOUNDS;
 
     const speed = Math.sqrt(velocities[i3] ** 2 + velocities[i3 + 1] ** 2);
     if (speed > MAX_SPEED) {
@@ -180,8 +160,35 @@ export function crushImpulse(originWorld) {
       const strength = 0.08 / Math.max(dist, 0.2);
       velocities[i3]     += (dx / Math.max(dist, 0.001)) * strength;
       velocities[i3 + 1] += (dy / Math.max(dist, 0.001)) * strength;
-      velocities[i3 + 2] += (Math.random() - 0.5) * strength * 0.6;
     }
+  }
+}
+
+export function darkMoodBurst() {
+  // 5 random crush-impulse points scattered across the visible area
+  for (let k = 0; k < 5; k++) {
+    const ox = (Math.random() - 0.5) * 16;
+    const oy = (Math.random() - 0.5) * 10;
+    for (let i = 0; i < COUNT; i++) {
+      const i3 = i * 3;
+      const dx = positions[i3] - ox;
+      const dy = positions[i3 + 1] - oy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < CRUSH_RADIUS) {
+        const str = 0.12 / Math.max(dist, 0.2);
+        velocities[i3]     += (dx / Math.max(dist, 0.001)) * str;
+        velocities[i3 + 1] += (dy / Math.max(dist, 0.001)) * str;
+      }
+    }
+  }
+}
+
+export function lightMoodDrift() {
+  // gentle rightward + upward drift — like a breeze
+  for (let i = 0; i < COUNT; i++) {
+    const i3 = i * 3;
+    velocities[i3]     += 0.012 * (0.4 + Math.random() * 0.6);
+    velocities[i3 + 1] += 0.007 * (0.4 + Math.random() * 0.6);
   }
 }
 
