@@ -3,7 +3,7 @@ import { initScene, render, getScene, getCamera, mpToWorld, updateCamera, BLOOM_
 import { initHands, detectHands, setOnGesture, getHandGrowingState, getHandInfo } from './hands.js';
 import * as hands from './hands.js';
 import { initStarfield, updateStarfield, crushImpulse, rotateImpulse, darkMoodBurst, lightMoodDrift, starMoodBurst } from './starfield.js';
-import { initSpeech, setOnMood } from './speech.js';
+import { initSpeech, setOnMood, testWord } from './speech.js';
 import { initMood, triggerDark, triggerLight, updateMood, setMicActive } from './mood.js';
 import { createThread, updateThreads, activeThreads, crushThreads, createPreviewThread, updatePreviewThread, removePreviewThread, findClosestEndpoint, getEndpointPos, setEndpointPos, flashWeld, checkAndFlashTriangle } from './threads.js';
 // import { initSolly, updateSolly, energizeSolly, setOnSollyTouch } from './solly.js';
@@ -64,6 +64,17 @@ async function _start() {
   setOnMood(_handleMood);
   const micOn = initSpeech();
   setMicActive(micOn);
+
+  // Text fallback — type a word + Enter to trigger mood (works without mic)
+  const wordInput = document.getElementById('word-input');
+  if (wordInput) {
+    wordInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const hit = testWord(wordInput.value.trim());
+      if (hit) wordInput.value = '';
+      else { wordInput.classList.add('miss'); setTimeout(() => wordInput.classList.remove('miss'), 400); }
+    });
+  }
 
   _preLoop.running = false;
   startOverlay.style.display = 'none';

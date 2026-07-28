@@ -104,6 +104,20 @@ const COOLDOWN = 2000;
 
 export function setOnMood(fn) { _onMood = fn; }
 
+// Manual trigger — type a word and call this (same logic as speech detection)
+export function testWord(raw) {
+  const w = raw.toLowerCase().replace(/[^a-zÀ-ɏ]/g, '');
+  if (!w || !_onMood) return false;
+  const now = performance.now();
+  if (DARK_WORDS.has(w) && now - _lastDark > COOLDOWN) {
+    console.log('[text] DONKER:', w); _lastDark = now; _onMood({ mood: 'dark', word: w }); return true;
+  }
+  if (LIGHT_WORDS.has(w) && now - _lastLight > COOLDOWN) {
+    console.log('[text] LICHT:', w); _lastLight = now; _onMood({ mood: 'light', word: w }); return true;
+  }
+  return false;
+}
+
 export function initSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
