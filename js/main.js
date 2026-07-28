@@ -59,17 +59,17 @@ async function _start() {
   await new Promise(res => { videoEl.onloadedmetadata = res; });
   videoEl.play();
 
-  // Start speech immediately — doesn't need MediaPipe
+  // Start speech + game loop immediately — don't wait for MediaPipe
   setOnMood(_handleMood);
   const micOn = initSpeech();
   setMicActive(micOn);
 
-  await initHands();
-  setOnGesture(_handleGesture);
-
   _preLoop.running = false;
   startOverlay.style.display = 'none';
   requestAnimationFrame(_loop);
+
+  // Load MediaPipe in background; hands activate when ready
+  initHands().then(() => setOnGesture(_handleGesture)).catch(console.error);
 }
 
 function _handleMood({ mood, word }) {
