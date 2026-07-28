@@ -25,6 +25,9 @@ initHud();
 initMood();
 requestAnimationFrame(_preLoop);
 
+// Pre-load MediaPipe in background while user reads the overlay
+const _handsReady = initHands();
+
 function _preLoop(time) {
   if (!_preLoop.running) return;
   requestAnimationFrame(_preLoop);
@@ -37,7 +40,7 @@ _preLoop.running = true;
 
 startBtn.addEventListener('click', () => {
   startBtn.disabled = true;
-  startBtn.textContent = 'loading…';
+  startBtn.textContent = 'camera starten…';
   _start().catch(err => {
     console.error(err);
     errorMsg.textContent = `Error: ${err.message}`;
@@ -66,8 +69,8 @@ async function _start() {
   startOverlay.style.display = 'none';
   requestAnimationFrame(_loop);
 
-  // Load MediaPipe in background; hands activate when ready
-  initHands().then(() => setOnGesture(_handleGesture)).catch(console.error);
+  // Hands were pre-loading since page load — wire up gesture handler when ready
+  _handsReady.then(() => setOnGesture(_handleGesture)).catch(console.error);
 }
 
 function _handleMood({ mood, word }) {
