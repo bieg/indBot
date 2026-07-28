@@ -59,11 +59,13 @@ async function _start() {
   await new Promise(res => { videoEl.onloadedmetadata = res; });
   videoEl.play();
 
-  await initHands();
-  setOnGesture(_handleGesture);
+  // Start speech immediately — doesn't need MediaPipe
   setOnMood(_handleMood);
   const micOn = initSpeech();
   setMicActive(micOn);
+
+  await initHands();
+  setOnGesture(_handleGesture);
 
   _preLoop.running = false;
   startOverlay.style.display = 'none';
