@@ -44,7 +44,10 @@ export function setOnMood(fn) { _onMood = fn; }
 
 export function initSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return false;
+  if (!SR) {
+    console.warn('[speech] Web Speech API niet beschikbaar. Gebruik Chrome of Edge voor mic-detectie.');
+    return false;
+  }
   _makeInstance(SR, 'en-US');
   _makeInstance(SR, 'nl-NL');
   return true;
@@ -54,22 +57,31 @@ function _makeInstance(SR, lang) {
   const r = new SR();
   r.continuous = true; r.interimResults = true; r.lang = lang; r.maxAlternatives = 1;
   r.onresult = _onResult;
-  r.onerror = (e) => { if (e.error === 'no-speech' || e.error === 'aborted') return; };
+  r.onerror = (e) => {
+    if (e.error === 'no-speech' || e.error === 'aborted') return;
+    console.warn('[speech] fout (' + lang + '):', e.error);
+  };
+  r.onstart = () => console.log('[speech] gestart:', lang);
   r.onend = () => { try { r.start(); } catch (_) {} };
-  try { r.start(); } catch (_) {}
+  try { r.start(); } catch (err) { console.warn('[speech] start mislukt:', lang, err); }
 }
 
 function _onResult(event) {
   const now = performance.now();
   for (let i = event.resultIndex; i < event.results.length; i++) {
-    const words = event.results[i][0].transcript.toLowerCase().split(/\s+/);
+    const transcript = event.results[i][0].transcript.toLowerCase();
+    const isFinal = event.results[i].isFinal;
+    if (isFinal) console.log('[speech] gehoord:', transcript);
+    const words = transcript.split(/\s+/);
     for (const raw of words) {
       const w = raw.replace(/[^a-z]/g, '');
       if (!w) continue;
       if (DARK_WORDS.has(w) && now - _lastDark > COOLDOWN) {
+        console.log('[speech] DONKER woord:', w);
         _lastDark = now; if (_onMood) _onMood({ mood: 'dark', word: w }); return;
       }
       if (LIGHT_WORDS.has(w) && now - _lastLight > COOLDOWN) {
+        console.log('[speech] LICHT woord:', w);
         _lastLight = now; if (_onMood) _onMood({ mood: 'light', word: w }); return;
       }
     }
