@@ -96,49 +96,6 @@ html, body {
   border-color: rgba(255, 215, 106, 1);
 }
 
-#mood-canvas {
-  position: fixed; inset: 0;
-  width: 100%; height: 100%;
-  pointer-events: none;
-  z-index: 3;
-}
-
-#mood-word {
-  position: fixed;
-  bottom: 80px;
-  left: 50%;
-  transform: translateX(-50%) scale(1);
-  z-index: 5;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: clamp(28px, 5vw, 56px);
-  font-weight: 100;
-  letter-spacing: 0.22em;
-  opacity: 0;
-  pointer-events: none;
-  user-select: none;
-  transition: opacity 0.4s ease, transform 0.4s ease;
-  text-shadow: 0 0 30px currentColor;
-  white-space: nowrap;
-}
-
-#mic-indicator {
-  position: fixed;
-  bottom: 16px;
-  right: 18px;
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  pointer-events: none;
-}
-
-#mic-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.2);
-  transition: background 0.3s, box-shadow 0.3s;
-}
-
 #error-msg {
   position: fixed; inset: 0;
   z-index: 11;

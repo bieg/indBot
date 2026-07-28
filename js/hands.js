@@ -4,13 +4,13 @@ import { mpToWorld } from './scene.js';
 const FINGERS = ['structure', 'energy', 'gravity', 'ghost'];
 const TIPS    = [8, 12, 16, 20];
 
-const ARM_THRESHOLDS     = [1.2, 1.45, 1.7, 1.95];
-const RELEASE_THRESHOLDS = [0.95, 1.1, 1.35, 1.6];
-const FIST_ARM     = 0.9;
-const FIST_RELEASE = 1.2;
-const FRAMES_REQUIRED = 3;
+const ARM_THRESHOLDS     = [0.65, 1.5, 1.8, 2.1];
+const RELEASE_THRESHOLDS = [0.40, 1.1, 1.4, 1.7];
+const FIST_ARM     = 0.50;
+const FIST_RELEASE = 0.70;
+const FRAMES_REQUIRED = 2;
 const COOLDOWN_MS = 400;
-const ALPHA = 0.45;
+const ALPHA = 0.3;
 const ROTATE_THRESHOLD = 1.1;   // ~63° of wrist rotation
 const ROTATE_WINDOW_MS = 600;
 const ROTATE_COOLDOWN_MS = 800;
@@ -55,6 +55,7 @@ function _initHandState() {
     fist: { state: 'idle', frames: 0, lastFire: 0 },
     rollHistory: [],
     rotateGesture: { lastFire: 0 },
+    strokeVelBuf: [],   // rolling ratio-delta buffer for structure gesture speed
   };
 }
 
@@ -106,24 +107,32 @@ export function detectHands(videoEl) {
 
     for (let fi = 0; fi < FINGERS.length; fi++) {
       const ratio = _dist(sm[4], sm[TIPS[fi]]) / Math.max(ref, 0.01);
+
+      // Accumulate separation velocity for the structure gesture (thumb-index)
+      if (fi === 0) {
+        const prev  = hs.fingers[0]._prevRatio ?? ratio;
+        const delta = ratio - prev;
+        if (delta > 0 && ratio > 0.5) {
+          hs.strokeVelBuf.push(delta);
+          if (hs.strokeVelBuf.length > 30) hs.strokeVelBuf.shift();
+        }
+        hs.fingers[0]._prevRatio = ratio;
+      }
+
       _updateFingerState(hs.fingers[fi], ratio, ARM_THRESHOLDS[fi], RELEASE_THRESHOLDS[fi], () => {
         if (!onGesture) return;
         const origin = mpToWorld(sm[4].x, sm[4].y);
-        const tip = mpToWorld(sm[TIPS[fi]].x, sm[TIPS[fi]].y);
-        onGesture({ type: FINGERS[fi], handIndex: hi, originPoint: origin, targetPoint: tip });
+        const tip    = mpToWorld(sm[TIPS[fi]].x, sm[TIPS[fi]].y);
+        const evt    = { type: FINGERS[fi], handIndex: hi, originPoint: origin, targetPoint: tip };
+        if (fi === 0) {
+          evt.separationSpeed = hs.strokeVelBuf.length
+            ? hs.strokeVelBuf.reduce((a, b) => a + b, 0) / hs.strokeVelBuf.length
+            : 0.04;
+          hs.strokeVelBuf = [];
+        }
+        onGesture(evt);
       });
     }
-
-    const avgTipToPalm = (
-      _dist(sm[4], sm[0]) + _dist(sm[8], sm[0]) + _dist(sm[12], sm[0]) +
-      _dist(sm[16], sm[0]) + _dist(sm[20], sm[0])
-    ) / (5 * Math.max(ref, 0.01));
-
-    _updateFistState(hs.fist, avgTipToPalm, () => {
-      if (!onGesture) return;
-      const palm = mpToWorld(sm[0].x, sm[0].y);
-      onGesture({ type: 'crush', handIndex: hi, originPoint: palm, targetPoint: palm });
-    });
 
     _updateWristRotation(hs, sm, hi);
   }
@@ -159,25 +168,24 @@ function _updateWristRotation(hs, sm, hi) {
 }
 
 function _updateFingerState(st, ratio, armT, releaseT, fire) {
-  const now = performance.now();
-  if (now - st.lastFire < COOLDOWN_MS) { st.state = 'cooldown'; st.frames = 0; return; }
-  if (st.state === 'cooldown') { st.state = 'idle'; st.frames = 0; }
+  // Release always takes priority — hand must close before next fire
+  if (ratio < releaseT) {
+    st.state = 'idle';
+    st.frames = 0;
+    return;
+  }
+  // 'armed' persists until hand closes; prevents repeated firing on a held pose
+  if (st.state === 'armed') return;
 
   if (ratio > armT) {
-    if (st.state === 'idle') st.state = 'growing';
+    if (st.state === 'idle') { st.state = 'growing'; st.frames = 0; }
     if (st.state === 'growing') {
       st.frames++;
       if (st.frames >= FRAMES_REQUIRED) {
         st.state = 'armed';
         st.frames = 0;
-        st.lastFire = now;
         fire();
       }
-    }
-  } else if (ratio < releaseT) {
-    if (st.state === 'armed' || st.state === 'growing') {
-      st.state = 'idle';
-      st.frames = 0;
     }
   }
 }
@@ -225,11 +233,13 @@ export function getHandInfo(handIndex) {
     orienting,
     entryTime: hs.entryTime,
     ratios: TIPS.map(tip => _dist(sm[4], sm[tip]) / ref),
+    indexMiddleRatio: _dist(sm[8], sm[12]) / ref,
     armThresholds: ARM_THRESHOLDS,
     releaseThresholds: RELEASE_THRESHOLDS,
     fingerStates: hs.fingers.map(f => f.state),
     thumbMp: { x: sm[4].x, y: sm[4].y },
     tipsMp: TIPS.map(tip => ({ x: sm[tip].x, y: sm[tip].y })),
     palmMp: { x: sm[0].x, y: sm[0].y },
+    rawIndexTip: latestResult.landmarks[handIndex]?.[8] ?? { x: sm[8].x, y: sm[8].y },
   };
 }

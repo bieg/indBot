@@ -42,7 +42,7 @@ export function initScene() {
 function _buildBloomComposer() {
   const w = window.innerWidth, h = window.innerHeight;
 
-  const bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.5, 0.4, 0.25);
+  const bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.85, 0.5, 0.20);
 
   bloomComposer = new EffectComposer(renderer);
   bloomComposer.renderToScreen = false;
@@ -112,6 +112,20 @@ function _restoreMaterials() {
 
 export function getScene() { return scene; }
 export function getCamera() { return camera; }
+
+// Camera smoothly drifts toward hand position — creates parallax / "inside 3D space" feel.
+// mpX, mpY are raw MediaPipe coords (0..1, not yet flipped).
+let _camX = 0, _camY = 0;
+export function updateCamera(mpX, mpY) {
+  const tx = (0.5 - mpX) * 2.24;   // mirror already handled: left hand → positive x
+  const ty = (0.5 - mpY) * 1.6;
+  _camX += (tx - _camX) * 0.05;
+  _camY += (ty - _camY) * 0.05;
+  camera.position.x = _camX;
+  camera.position.y = _camY;
+  camera.position.z = CAMERA_Z;
+  camera.lookAt(0, 0, 0);
+}
 
 const WORLD_SCALE = 0.6; // compress hand-to-world mapping so closer hands still work
 
