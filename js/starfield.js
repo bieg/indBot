@@ -185,6 +185,30 @@ export function crushImpulse(originWorld) {
   }
 }
 
+export function darkMoodBurst() {
+  for (let k = 0; k < 5; k++) {
+    const ox = (Math.random() - 0.5) * 16, oy = (Math.random() - 0.5) * 10;
+    for (let i = 0; i < COUNT; i++) {
+      const i3 = i * 3;
+      const dx = positions[i3] - ox, dy = positions[i3+1] - oy;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < CRUSH_RADIUS) {
+        const str = 0.12 / Math.max(dist, 0.2);
+        velocities[i3]   += (dx / Math.max(dist, 0.001)) * str;
+        velocities[i3+1] += (dy / Math.max(dist, 0.001)) * str;
+      }
+    }
+  }
+}
+
+export function lightMoodDrift() {
+  for (let i = 0; i < COUNT; i++) {
+    const i3 = i * 3;
+    velocities[i3]   += 0.012 * (0.4 + Math.random() * 0.6);
+    velocities[i3+1] += 0.007 * (0.4 + Math.random() * 0.6);
+  }
+}
+
 function _closestPointOnSegment(px, py, start, end, out) {
   const ax = end.x - start.x, ay = end.y - start.y;
   const bx = px - start.x,  by = py - start.y;

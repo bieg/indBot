@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { initScene, render, getScene, getCamera, mpToWorld, updateCamera, BLOOM_LAYER } from './scene.js';
 import { initHands, detectHands, setOnGesture, getHandGrowingState, getHandInfo } from './hands.js';
 import * as hands from './hands.js';
-import { initStarfield, updateStarfield, crushImpulse, rotateImpulse } from './starfield.js';
+import { initStarfield, updateStarfield, crushImpulse, rotateImpulse, darkMoodBurst, lightMoodDrift } from './starfield.js';
+import { initSpeech, setOnMood } from './speech.js';
+import { initMood, triggerDark, triggerLight, updateMood, setMicActive } from './mood.js';
 import { createThread, updateThreads, activeThreads, crushThreads, createPreviewThread, updatePreviewThread, removePreviewThread, findClosestEndpoint, getEndpointPos, setEndpointPos, flashWeld, checkAndFlashTriangle } from './threads.js';
 // import { initSolly, updateSolly, energizeSolly, setOnSollyTouch } from './solly.js';
 import { initAudio, resumeAudio, playGestureSound } from './audio.js';
@@ -20,6 +22,7 @@ const scene = getScene();
 initStarfield(scene);
 initNebula(scene);
 initHud();
+initMood();
 requestAnimationFrame(_preLoop);
 
 function _preLoop(time) {
@@ -27,6 +30,7 @@ function _preLoop(time) {
   requestAnimationFrame(_preLoop);
   updateStarfield(time, []);
   updateNebula();
+  updateMood();
   render();
 }
 _preLoop.running = true;
@@ -57,10 +61,18 @@ async function _start() {
 
   await initHands();
   setOnGesture(_handleGesture);
+  setOnMood(_handleMood);
+  const micOn = initSpeech();
+  setMicActive(micOn);
 
   _preLoop.running = false;
   startOverlay.style.display = 'none';
   requestAnimationFrame(_loop);
+}
+
+function _handleMood({ mood, word }) {
+  if (mood === 'dark') { triggerDark(word); darkMoodBurst(); }
+  else { triggerLight(word); lightMoodDrift(); }
 }
 
 function _handleGesture(evt) {
@@ -342,6 +354,7 @@ function _loop(time) {
 
   updateStarfield(time, activeThreads, indexTips);
   updateNebula(time, indexTips);
+  updateMood();
   updateThreads(time);
   _updateMarbles();
   updateThreadCount(activeThreads.length);
