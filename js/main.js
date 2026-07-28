@@ -53,29 +53,35 @@ async function _start() {
   initAudio();
   resumeAudio();
 
+  // Ask camera + mic together so Chrome shows ONE permission dialog.
+  // We stop the audio track immediately — we only needed the permission grant
+  // so Web Speech API can start without a second hidden popup.
   const stream = await navigator.mediaDevices.getUserMedia({
     video: { width: 640, height: 480, facingMode: 'user' },
+    audio: true,
   });
+  stream.getAudioTracks().forEach(t => t.stop());
   videoEl.srcObject = stream;
   await new Promise(res => { videoEl.onloadedmetadata = res; });
   videoEl.play();
 
-  // Start speech + game loop immediately — don't wait for MediaPipe
+  // Speech now has mic permission — start it
   setOnMood(_handleMood);
   const micOn = initSpeech();
   setMicActive(micOn);
 
-  // Show what Chrome is hearing (debug strip at bottom)
+  // Debug strip: shows what Chrome hears, or error if speech blocked
   const dbg = document.getElementById('speech-debug');
   if (dbg) {
     if (!micOn) {
-      dbg.textContent = 'spraak niet beschikbaar — gebruik Chrome (niet incognito)';
+      dbg.textContent = 'microfoon geblokkeerd — gebruik Chrome (niet incognito)';
     } else {
+      dbg.textContent = '🎙 luistert…';
       setOnHeard((t) => {
         dbg.textContent = t;
         dbg.classList.add('hit');
         clearTimeout(dbg._t);
-        dbg._t = setTimeout(() => { dbg.textContent = ''; dbg.classList.remove('hit'); }, 2500);
+        dbg._t = setTimeout(() => { dbg.textContent = '🎙 luistert…'; dbg.classList.remove('hit'); }, 2500);
       });
     }
   }
