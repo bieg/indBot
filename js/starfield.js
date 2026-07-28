@@ -16,12 +16,14 @@ let geometry, points;
 let geometry2, points2;
 
 // Star color animation state
+// NOTE: additive blending means dark colors are invisible on black bg —
+// use saturated brights so the color addition is actually visible.
 const _C_NORMAL1 = new THREE.Color(0xddeeff);
 const _C_NORMAL2 = new THREE.Color(0xfffaf0);
-const _C_DARK1   = new THREE.Color(0x660011); // deep crimson
-const _C_DARK2   = new THREE.Color(0x330044); // deep purple
+const _C_DARK1   = new THREE.Color(0xff1100); // bright red
+const _C_DARK2   = new THREE.Color(0x9900ff); // bright violet
 const _C_LIGHT1  = new THREE.Color(0xffffff); // pure white flash
-const _C_LIGHT2  = new THREE.Color(0xff8800); // warm orange
+const _C_LIGHT2  = new THREE.Color(0xff9900); // bright orange
 let _colorAnim = null;
 
 // Inline GLSL — draws a soft radial glow disc using gl_PointCoord.

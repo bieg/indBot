@@ -94,7 +94,16 @@ async function _start() {
   _handsReady.then(() => setOnGesture(_handleGesture)).catch(console.error);
 }
 
+const _moodFlash = document.getElementById('mood-flash');
 function _handleMood({ mood }) {
+  console.log('[mood] triggered:', mood);
+  // Immediate DOM flash — visible regardless of Three.js / canvas state
+  if (_moodFlash) {
+    _moodFlash.className = mood === 'dark' ? 'dark' : 'light';
+    _moodFlash.classList.add('show');
+    clearTimeout(_moodFlash._t);
+    _moodFlash._t = setTimeout(() => _moodFlash.classList.remove('show'), 80);
+  }
   if (mood === 'dark') { triggerDark(); darkMoodBurst(); starMoodBurst('dark'); }
   else { triggerLight(); lightMoodDrift(); starMoodBurst('light'); }
 }

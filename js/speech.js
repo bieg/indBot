@@ -115,7 +115,7 @@ const LIGHT_WORDS = new Set([
 let _onMood = null;
 let _onHeard = null; // debug: called with every interim word Chrome picks up
 let _lastDark = 0, _lastLight = 0;
-const COOLDOWN = 2000;
+const COOLDOWN = 800;
 
 export function setOnMood(fn) { _onMood = fn; }
 export function setOnHeard(fn) { _onHeard = fn; }
@@ -168,10 +168,12 @@ function _onResult(event) {
   for (let i = event.resultIndex; i < event.results.length; i++) {
     const transcript = event.results[i][0].transcript.toLowerCase().trim();
     if (!transcript) continue;
-    if (event.results[i].isFinal) console.log('[speech]', transcript);
+    if (event.results[i].isFinal) console.log('[speech] final:', transcript);
     if (_onHeard) _onHeard(transcript);
     const words = transcript.split(/\s+/);
     for (const raw of words) {
+      // strip non-alpha but keep the word — Chrome censors "sh*t" so also
+      // check the raw token directly in case stars end up in the string
       const w = raw.replace(/[^a-z]/g, '');
       if (!w) continue;
       if (DARK_WORDS.has(w) && now - _lastDark > COOLDOWN) {
@@ -181,6 +183,23 @@ function _onResult(event) {
       if (LIGHT_WORDS.has(w) && now - _lastLight > COOLDOWN) {
         console.log('[speech] LICHT:', w);
         _lastLight = now; if (_onMood) _onMood({ mood: 'light', word: w }); return;
+      }
+    }
+    // Fallback: check full transcript for multi-word phrases / partial matches
+    if (now - _lastDark > COOLDOWN) {
+      for (const dw of DARK_WORDS) {
+        if (transcript.includes(dw)) {
+          console.log('[speech] DONKER (phrase):', dw);
+          _lastDark = now; if (_onMood) _onMood({ mood: 'dark', word: dw }); return;
+        }
+      }
+    }
+    if (now - _lastLight > COOLDOWN) {
+      for (const lw of LIGHT_WORDS) {
+        if (transcript.includes(lw)) {
+          console.log('[speech] LICHT (phrase):', lw);
+          _lastLight = now; if (_onMood) _onMood({ mood: 'light', word: lw }); return;
+        }
       }
     }
   }

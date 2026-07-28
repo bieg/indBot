@@ -147,6 +147,18 @@ html, body {
   transition: background 0.3s, box-shadow 0.3s;
 }
 
+#mood-flash {
+  position: fixed; inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.08s ease-in, opacity 1.8s ease-out;
+}
+
+#mood-flash.dark  { background: radial-gradient(ellipse at center, rgba(180,0,0,0.55) 0%, rgba(80,0,40,0.35) 60%, transparent 100%); }
+#mood-flash.light { background: radial-gradient(ellipse at center, rgba(255,220,80,0.55) 0%, rgba(255,140,0,0.25) 60%, transparent 100%); }
+#mood-flash.show  { opacity: 1; }
+
 #speech-debug {
   position: fixed;
   bottom: 12px; left: 50%;
