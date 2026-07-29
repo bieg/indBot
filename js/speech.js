@@ -1,6 +1,11 @@
 // These six words trigger the dramatic contraction → explosion star animation
 const NEGATIVE_WORDS = new Set([
-  'storm', 'dark', 'shit', 'damn', 'klote', 'verdomme',
+  'storm', 'storms', 'storming',
+  'dark', 'darker', 'darkest',
+  'shit', 'shitty',
+  'damn', 'damned', 'dammit',
+  'klote', 'klotenzooi',
+  'verdomme', 'verdomd',
 ]);
 
 const DARK_WORDS = new Set([
@@ -58,12 +63,14 @@ const LIGHT_WORDS = new Set([
 ]);
 
 let _onMood = null;
+let _onWord = null;
 let _lastDarkTrigger = 0;
 let _lastLightTrigger = 0;
 let _lastNegativeTrigger = 0;
 const COOLDOWN = 2000;
 
 export function setOnMood(fn) { _onMood = fn; }
+export function setOnWord(fn) { _onWord = fn; }
 
 export function initSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -80,7 +87,7 @@ function _makeInstance(SR, lang) {
   r.continuous       = true;
   r.interimResults   = true;
   r.lang             = lang;
-  r.maxAlternatives  = 1;
+  r.maxAlternatives  = 3;
   r.onresult         = _onResult;
   r.onerror          = (e) => {
     if (e.error === 'no-speech' || e.error === 'aborted') return;
@@ -90,31 +97,59 @@ function _makeInstance(SR, lang) {
   try { r.start(); } catch (_) {}
 }
 
+// Common short words to skip for word clouds
+const _SKIP = new Set([
+  'the','and','that','this','with','have','from','they','will','been','were',
+  'their','what','when','your','said','each','which','she','him','his','her',
+  'een','het','van','dat','zijn','maar','voor','niet','met','ook','die',
+  'door','naar','wel','kan','bij','heeft','wordt','werd','wat','wie','hoe',
+]);
+
 function _onResult(event) {
   const now = performance.now();
+  let moodTriggered = false;
 
   for (let i = event.resultIndex; i < event.results.length; i++) {
-    const transcript = event.results[i][0].transcript.toLowerCase();
-    const words = transcript.split(/\s+/);
+    const result = event.results[i];
 
-    for (const raw of words) {
-      const word = raw.replace(/[^a-z]/g, '');
-      if (!word) continue;
+    // Check all alternatives for trigger words — gives recognizer more chances to match
+    outer:
+    for (let alt = 0; alt < result.length; alt++) {
+      const words = result[alt].transcript.toLowerCase().split(/\s+/);
+      for (const raw of words) {
+        const word = raw.replace(/[^a-z]/g, '');
+        if (!word) continue;
 
-      if (NEGATIVE_WORDS.has(word) && now - _lastNegativeTrigger > COOLDOWN) {
-        _lastNegativeTrigger = now;
-        if (_onMood) _onMood({ mood: 'negative', word });
-        return;
+        if (NEGATIVE_WORDS.has(word) && now - _lastNegativeTrigger > COOLDOWN) {
+          _lastNegativeTrigger = now;
+          if (_onMood) _onMood({ mood: 'negative', word });
+          moodTriggered = true;
+          break outer;
+        }
+        if (DARK_WORDS.has(word) && now - _lastDarkTrigger > COOLDOWN) {
+          _lastDarkTrigger = now;
+          if (_onMood) _onMood({ mood: 'dark', word });
+          moodTriggered = true;
+          break outer;
+        }
+        if (LIGHT_WORDS.has(word) && now - _lastLightTrigger > COOLDOWN) {
+          _lastLightTrigger = now;
+          if (_onMood) _onMood({ mood: 'light', word });
+          moodTriggered = true;
+          break outer;
+        }
       }
-      if (DARK_WORDS.has(word) && now - _lastDarkTrigger > COOLDOWN) {
-        _lastDarkTrigger = now;
-        if (_onMood) _onMood({ mood: 'dark', word });
-        return;
-      }
-      if (LIGHT_WORDS.has(word) && now - _lastLightTrigger > COOLDOWN) {
-        _lastLightTrigger = now;
-        if (_onMood) _onMood({ mood: 'light', word });
-        return;
+    }
+
+    // Spawn word clouds only for final results and non-trigger words
+    if (result.isFinal && !moodTriggered && _onWord) {
+      const words = result[0].transcript.toLowerCase().split(/\s+/);
+      for (const raw of words) {
+        const word = raw.replace(/[^a-z]/g, '');
+        if (word.length < 4) continue;
+        if (_SKIP.has(word)) continue;
+        if (NEGATIVE_WORDS.has(word) || DARK_WORDS.has(word) || LIGHT_WORDS.has(word)) continue;
+        _onWord(word);
       }
     }
   }

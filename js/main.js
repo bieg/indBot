@@ -6,7 +6,8 @@ import { createThread, updateThreads, activeThreads, crushThreads } from './thre
 import { initSolly, updateSolly, energizeSolly, setOnSollyTouch } from './solly.js';
 import { initAudio, resumeAudio, playGestureSound } from './audio.js';
 import { initHud, setGestureHint, updateThreadCount, drawSkeleton } from './hud.js';
-import { initSpeech, setOnMood } from './speech.js';
+import { initSpeech, setOnMood, setOnWord } from './speech.js';
+import { initWordCloud, spawnWordCloud, updateWordCloud } from './wordcloud.js';
 import { initMood, triggerDark, triggerLight, updateMood, setMicActive } from './mood.js';
 
 const videoEl = document.getElementById('webcam');
@@ -19,6 +20,7 @@ initScene();
 const scene = getScene();
 initStarfield(scene);
 initSolly(scene);
+initWordCloud(scene);
 initHud();
 initMood();
 setOnSollyTouch(() => playGestureSound('solly-touch'));
@@ -30,6 +32,7 @@ function _preLoop(time) {
   updateStarfield(time, []);
   updateSolly(time, [], [], []);
   updateMood();
+  updateWordCloud();
   render();
 }
 _preLoop.running = true;
@@ -62,6 +65,7 @@ async function _start() {
   setOnGesture(_handleGesture);
 
   setOnMood(_handleMood);
+  setOnWord(spawnWordCloud);
   const micOn = initSpeech();
   setMicActive(micOn);
 
@@ -134,6 +138,7 @@ function _loop(time) {
   updateThreads(time);
   updateSolly(time, activeThreads, fingerPositions, palmPositions);
   updateMood();
+  updateWordCloud();
   updateThreadCount(activeThreads.length);
 
   const handInfos = [getHandInfo(0), getHandInfo(1)];

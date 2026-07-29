@@ -119,9 +119,9 @@ const FINGERTIPS = [4, 8, 12, 16, 20];
 const _BONE_PARTS = HAND_CONNECTIONS.map(([a, b], bi) => {
   const N = 30;
   return Array.from({ length: N }, (_, p) => ({
-    t:    ((bi * 37 + p * 13 + 3) % 97) / 97,          // position along bone
-    perp: (((bi * 17 + p * 41 + 7) % 200) / 200 - 0.5) * 8, // ±4px scatter
-    sz:   0.6 + ((bi * 7  + p * 11) % 8)  / 14,
+    t:    ((bi * 37 + p * 13 + 3) % 97) / 97,
+    perp: (((bi * 17 + p * 41 + 7) % 200) / 200 - 0.5) * 3, // ±1.5px — thinner ribs
+    sz:   0.4 + ((bi * 7  + p * 11) % 8)  / 20,
     al:   0.20 + ((bi * 3  + p *  7) % 60) / 160,
   }));
 });
@@ -129,7 +129,7 @@ const _BONE_PARTS = HAND_CONNECTIONS.map(([a, b], bi) => {
 const _JOINT_PARTS = Array.from({ length: 21 }, (_, li) => {
   const ft = FINGERTIPS.includes(li);
   const N = ft ? 42 : 18;
-  const R = ft ? 12 : 7;
+  const R = ft ? 8 : 5;
   return Array.from({ length: N }, (_, p) => {
     const angle = (li * 41 + p * 17) * 0.6137;
     const frac  = ((li * 23 + p * 37 + 7) % 97) / 97;
