@@ -13,6 +13,21 @@ const velocities = new Float32Array(COUNT * 3);
 const phases = new Float32Array(COUNT);
 let geometry, points;
 let geometry2, points2;
+let _mat1, _mat2;
+
+const _origColor1 = new THREE.Color(0xc8dcff);
+const _origColor2 = new THREE.Color(0xfff6e8);
+const _darkColor1 = new THREE.Color(0x440011); // dark red
+const _darkColor2 = new THREE.Color(0x001133); // dark blue
+
+let _negState = null; // null | 'contracting' | 'exploding'
+let _negStartTime = 0;
+let _explosionApplied = false;
+const CONTRACTION_MS    = 800;
+const EXPLOSION_MS      = 1100;
+const CONTRACTION_FORCE = 0.015;
+const EXPLOSION_FORCE   = 0.28;
+const BURST_MAX_SPEED   = 0.8;
 
 // Inline GLSL — draws a soft radial glow disc using gl_PointCoord.
 // Much more reliable than canvas textures (no asset loading, no alphaTest quirks).
@@ -64,14 +79,16 @@ export function initStarfield(scene) {
   // main layer — 1500 small cool blue-white glowing dots
   geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  points = new THREE.Points(geometry, _starMat(4.5, 0xc8dcff));
+  _mat1 = _starMat(4.5, 0xc8dcff);
+  points = new THREE.Points(geometry, _mat1);
   scene.add(points);
 
   // accent layer — 220 larger warm stars for depth (shared buffer view)
   const accentBuf = new Float32Array(positions.buffer, (COUNT - 220) * 3 * 4, 220 * 3);
   geometry2 = new THREE.BufferGeometry();
   geometry2.setAttribute('position', new THREE.BufferAttribute(accentBuf, 3));
-  points2 = new THREE.Points(geometry2, _starMat(9.0, 0xfff6e8));
+  _mat2 = _starMat(9.0, 0xfff6e8);
+  points2 = new THREE.Points(geometry2, _mat2);
   scene.add(points2);
 
   return points;
@@ -80,6 +97,48 @@ export function initStarfield(scene) {
 const _tmp = new THREE.Vector3();
 
 export function updateStarfield(time, activeThreads) {
+  // Handle negative-word burst: contraction → explosion state machine
+  if (_negState && _mat1 && _mat2) {
+    const now = performance.now();
+    const elapsed = now - _negStartTime;
+
+    if (_negState === 'contracting') {
+      const t = Math.min(1, elapsed / CONTRACTION_MS);
+      _mat1.uniforms.uColor.value.set(
+        _origColor1.r + (_darkColor1.r - _origColor1.r) * t,
+        _origColor1.g + (_darkColor1.g - _origColor1.g) * t,
+        _origColor1.b + (_darkColor1.b - _origColor1.b) * t,
+      );
+      _mat2.uniforms.uColor.value.set(
+        _origColor2.r + (_darkColor2.r - _origColor2.r) * t,
+        _origColor2.g + (_darkColor2.g - _origColor2.g) * t,
+        _origColor2.b + (_darkColor2.b - _origColor2.b) * t,
+      );
+      if (t >= 1) {
+        _negState = 'exploding';
+        _negStartTime = now;
+        _explosionApplied = false;
+      }
+    } else if (_negState === 'exploding') {
+      const t = Math.min(1, elapsed / EXPLOSION_MS);
+      _mat1.uniforms.uColor.value.set(
+        _darkColor1.r + (_origColor1.r - _darkColor1.r) * t,
+        _darkColor1.g + (_origColor1.g - _darkColor1.g) * t,
+        _darkColor1.b + (_origColor1.b - _darkColor1.b) * t,
+      );
+      _mat2.uniforms.uColor.value.set(
+        _darkColor2.r + (_origColor2.r - _darkColor2.r) * t,
+        _darkColor2.g + (_origColor2.g - _darkColor2.g) * t,
+        _darkColor2.b + (_origColor2.b - _darkColor2.b) * t,
+      );
+      if (t >= 1) {
+        _negState = null;
+        _mat1.uniforms.uColor.value.copy(_origColor1);
+        _mat2.uniforms.uColor.value.copy(_origColor2);
+      }
+    }
+  }
+
   for (let i = 0; i < COUNT; i++) {
     const i3 = i * 3;
     const px = positions[i3], py = positions[i3 + 1], pz = positions[i3 + 2];
@@ -110,6 +169,31 @@ export function updateStarfield(time, activeThreads) {
       }
     }
 
+    // Contraction: pull all stars toward center
+    if (_negState === 'contracting') {
+      const ddx = -px, ddy = -py;
+      const dd = Math.sqrt(ddx * ddx + ddy * ddy) + 0.001;
+      velocities[i3]     += (ddx / dd) * CONTRACTION_FORCE;
+      velocities[i3 + 1] += (ddy / dd) * CONTRACTION_FORCE;
+    }
+
+    // Explosion: one-shot outward impulse on the first frame of exploding state
+    if (_negState === 'exploding' && !_explosionApplied) {
+      const dd = Math.sqrt(px * px + py * py);
+      let ex, ey;
+      if (dd < 0.05) {
+        const angle = Math.random() * Math.PI * 2;
+        ex = Math.cos(angle);
+        ey = Math.sin(angle);
+      } else {
+        ex = px / dd;
+        ey = py / dd;
+      }
+      const str = EXPLOSION_FORCE * (0.7 + Math.random() * 0.6);
+      velocities[i3]     = ex * str;
+      velocities[i3 + 1] = ey * str;
+    }
+
     velocities[i3]     *= 0.98;
     velocities[i3 + 1] *= 0.98;
 
@@ -123,12 +207,17 @@ export function updateStarfield(time, activeThreads) {
     if (positions[i3 + 1] >  half) positions[i3 + 1] -= BOUNDS;
     if (positions[i3 + 1] < -half) positions[i3 + 1] += BOUNDS;
 
+    const maxSpd = _negState ? BURST_MAX_SPEED : MAX_SPEED;
     const speed = Math.sqrt(velocities[i3] ** 2 + velocities[i3 + 1] ** 2);
-    if (speed > MAX_SPEED) {
-      const scale = MAX_SPEED / speed;
+    if (speed > maxSpd) {
+      const scale = maxSpd / speed;
       velocities[i3]     *= scale;
       velocities[i3 + 1] *= scale;
     }
+  }
+
+  if (_negState === 'exploding' && !_explosionApplied) {
+    _explosionApplied = true;
   }
 
   geometry.attributes.position.needsUpdate = true;
@@ -181,6 +270,12 @@ export function darkMoodBurst() {
       }
     }
   }
+}
+
+export function negativeWordBurst() {
+  _negState = 'contracting';
+  _negStartTime = performance.now();
+  _explosionApplied = false;
 }
 
 export function lightMoodDrift() {

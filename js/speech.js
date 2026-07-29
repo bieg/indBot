@@ -1,3 +1,8 @@
+// These six words trigger the dramatic contraction → explosion star animation
+const NEGATIVE_WORDS = new Set([
+  'storm', 'dark', 'shit', 'damn', 'klote', 'verdomme',
+]);
+
 const DARK_WORDS = new Set([
   // English
   'dark', 'darkness', 'dying', 'die', 'dead', 'death', 'storm', 'stormy',
@@ -55,6 +60,7 @@ const LIGHT_WORDS = new Set([
 let _onMood = null;
 let _lastDarkTrigger = 0;
 let _lastLightTrigger = 0;
+let _lastNegativeTrigger = 0;
 const COOLDOWN = 2000;
 
 export function setOnMood(fn) { _onMood = fn; }
@@ -95,6 +101,11 @@ function _onResult(event) {
       const word = raw.replace(/[^a-z]/g, '');
       if (!word) continue;
 
+      if (NEGATIVE_WORDS.has(word) && now - _lastNegativeTrigger > COOLDOWN) {
+        _lastNegativeTrigger = now;
+        if (_onMood) _onMood({ mood: 'negative', word });
+        return;
+      }
       if (DARK_WORDS.has(word) && now - _lastDarkTrigger > COOLDOWN) {
         _lastDarkTrigger = now;
         if (_onMood) _onMood({ mood: 'dark', word });

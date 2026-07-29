@@ -1,7 +1,7 @@
 import { initScene, render, getScene, mpToWorld } from './scene.js';
 import { initHands, detectHands, setOnGesture, getHandGrowingState, getHandInfo } from './hands.js';
 import * as hands from './hands.js';
-import { initStarfield, updateStarfield, crushImpulse, rotateImpulse, darkMoodBurst, lightMoodDrift } from './starfield.js';
+import { initStarfield, updateStarfield, crushImpulse, rotateImpulse, darkMoodBurst, lightMoodDrift, negativeWordBurst } from './starfield.js';
 import { createThread, updateThreads, activeThreads, crushThreads } from './threads.js';
 import { initSolly, updateSolly, energizeSolly, setOnSollyTouch } from './solly.js';
 import { initAudio, resumeAudio, playGestureSound } from './audio.js';
@@ -88,7 +88,12 @@ function _handleGesture(evt) {
 }
 
 function _handleMood({ mood, word }) {
-  if (mood === 'dark') {
+  if (mood === 'negative') {
+    triggerDark(word);
+    negativeWordBurst();
+    energizeSolly(2.5);
+    playGestureSound('crush');
+  } else if (mood === 'dark') {
     triggerDark(word);
     darkMoodBurst();
     energizeSolly(2.0);
